@@ -189,7 +189,7 @@ write_generated_theme() { # $1=slug  $2=display-name  $3=mode  $4=wallpaper(opti
              bar_margin_x bar_spacing bar_radius bar_opacity bar_border_width \
              bar_padding bar_tray_size bar_font_size \
              bar_style bar_layer bar_autohide bar_uppercase bar_verbosity \
-             bar_ws_style bar_accent_style bar_blink \
+             bar_ws_style bar_accent_style bar_blink bar_module_sep bar_glow_text \
              bar_workspaces bar_clock bar_mod_window bar_mod_cpu bar_mod_temp \
              bar_mod_memory bar_mod_gpu bar_mod_disk bar_mod_audio bar_mod_network \
              bar_mod_bluetooth bar_mod_uptime bar_mod_kernel bar_mod_tray bar_mod_power \
@@ -246,7 +246,7 @@ load_palette() {
     bar_position bar_height bar_margin bar_margin_x bar_spacing bar_radius
     bar_opacity bar_border_width bar_padding bar_tray_size bar_font_size bar_workspaces bar_clock
     bar_style bar_layer bar_autohide bar_uppercase bar_verbosity
-    bar_ws_style bar_accent_style bar_blink
+    bar_ws_style bar_accent_style bar_blink bar_module_sep bar_glow_text
     bar_mod_window bar_mod_cpu bar_mod_temp bar_mod_memory bar_mod_gpu
     bar_mod_disk bar_mod_audio bar_mod_network bar_mod_bluetooth
     bar_mod_uptime bar_mod_kernel bar_mod_tray bar_mod_power
@@ -308,6 +308,8 @@ load_palette() {
   : "${PAL[bar_ws_style]:=pills}"     # numbers | pills | dots
   : "${PAL[bar_accent_style]:=fill}"  # fill | underline | outline
   : "${PAL[bar_blink]:=on}"           # on | off  (the prompt-cursor blink)
+  : "${PAL[bar_module_sep]:=none}"    # none | line | dot | thick (divider)
+  : "${PAL[bar_glow_text]:=off}"      # off | on  (neon glow on stat text)
   : "${PAL[bar_workspaces]:=5}";   : "${PAL[bar_clock]:=seconds}"
   local _bm
   for _bm in window cpu temp memory gpu disk audio network bluetooth uptime kernel tray power; do
@@ -402,26 +404,30 @@ load_palette() {
       PAL[fmt_audio]='vol:{volume}%';          PAL[fmt_audio_muted]='vol:--'
       PAL[fmt_net_wifi]='net:{signalStrength}% ↓{bandwidthDownBytes}'
       PAL[fmt_net_eth]='eth ↓{bandwidthDownBytes} ↑{bandwidthUpBytes}'
-      PAL[fmt_net_down]='net:DOWN' ;;
+      PAL[fmt_net_down]='net:DOWN'
+      PAL[fmt_gpu]='gpu:%U% vram:%V% %T°' ;;
     minimal)
       PAL[fmt_cpu]='{usage}%';                 PAL[fmt_memory]='{percentage}%'
       PAL[fmt_temp]='{temperatureC}°';         PAL[fmt_disk]='{percentage_used}%'
       PAL[fmt_audio]='{volume}%';              PAL[fmt_audio_muted]='--'
       PAL[fmt_net_wifi]='{signalStrength}%';   PAL[fmt_net_eth]='eth'
-      PAL[fmt_net_down]='down' ;;
+      PAL[fmt_net_down]='down'
+      PAL[fmt_gpu]='%U%' ;;
     icons)
-      PAL[fmt_cpu]=' {usage}%';               PAL[fmt_memory]=' {percentage}%'
-      PAL[fmt_temp]=' {temperatureC}°';       PAL[fmt_disk]=' {percentage_used}%'
-      PAL[fmt_audio]='{icon} {volume}%';       PAL[fmt_audio_muted]=' '
-      PAL[fmt_net_wifi]=' {signalStrength}%'; PAL[fmt_net_eth]=''
-      PAL[fmt_net_down]='' ;;
+      PAL[fmt_cpu]=$'\uf4bc {usage}%';         PAL[fmt_memory]=$'\uf538 {percentage}%'
+      PAL[fmt_temp]=$'\uf2c9 {temperatureC}\u00b0';  PAL[fmt_audio]='{icon} {volume}%'
+      PAL[fmt_disk]=$'\uf0a0 {percentage_used}%';  PAL[fmt_audio_muted]=$'\uf026'
+      PAL[fmt_net_wifi]=$'\uf1eb {signalStrength}%'; PAL[fmt_net_eth]=$'\uf0e8'
+      PAL[fmt_net_down]=$'\uf127'
+      PAL[fmt_gpu]=$'\uf109 %U%' ;;
     *)  # normal: short prefixes, the phosphor default
       PAL[fmt_cpu]='cpu {usage}%';             PAL[fmt_memory]='mem {percentage}%'
       PAL[fmt_temp]='tmp {temperatureC}°';     PAL[fmt_disk]='dsk {percentage_used}%'
       PAL[fmt_audio]='vol {volume}%';          PAL[fmt_audio_muted]='vol --'
       PAL[fmt_net_wifi]='net {signalStrength}%'
       PAL[fmt_net_eth]='eth {bandwidthDownBytes}'
-      PAL[fmt_net_down]='net down' ;;
+      PAL[fmt_net_down]='net down'
+      PAL[fmt_gpu]='gpu %U%' ;;
   esac
 
   # bar_uppercase: GTK CSS has no text-transform, so genuinely upcase the
@@ -445,6 +451,7 @@ load_palette() {
   case "${PAL[bar_ws_style]}" in
     numbers) PAL[fmt_ws]='{id}' ;;
     dots)    PAL[fmt_ws]='●' ;;
+    bars)    PAL[fmt_ws]='┃' ;;
     *)       PAL[fmt_ws]='{icon}' ;;
   esac
 
@@ -452,9 +459,13 @@ load_palette() {
   #   fill      = solid accent block (the phosphor default)
   #   underline = transparent, accent underline bar
   #   outline   = transparent, accent border ring
+  #   glow      = no fill, just a bright glowing glyph
+  #   dot       = a small accent dot under the glyph
   case "${PAL[bar_accent_style]}" in
     underline) PAL[bar_ws_active_css]='color: @green; background: transparent; border-bottom: 2px solid @green; padding: 0 7px; text-shadow: 0 0 6px @green;' ;;
     outline)   PAL[bar_ws_active_css]='color: @green; background: transparent; border: 1px solid @green; padding: 0 9px; box-shadow: 0 0 8px alpha(@green, 0.5);' ;;
+    glow)      PAL[bar_ws_active_css]='color: @green; background: transparent; padding: 0 7px; text-shadow: 0 0 10px @green, 0 0 4px @green; font-weight: bold;' ;;
+    dot)       PAL[bar_ws_active_css]='color: @green; background: transparent; border-bottom: 3px solid @green; border-radius: 0; padding: 0 7px;' ;;
     *)         PAL[bar_ws_active_css]='color: @bg; background: @green; box-shadow: 0 0 10px alpha(@green, 0.6); padding: 0 10px;' ;;
   esac
 
@@ -482,12 +493,35 @@ load_palette() {
   if [ "${PAL[bar_mod_power]}" = on ];     then _mr+='"custom/power", '; fi
   PAL[bar_modules_right]="${_mr%, }"
 
-  # derived: clock format + refresh interval from bar_clock
+  # derived: clock format + refresh interval from bar_clock. Rich set of
+  # presets — time density plus date-carrying variants.
   case "${PAL[bar_clock]}" in
-    minutes) PAL[clock_fmt]=' {:%H:%M}';     PAL[clock_interval]=60 ;;
-    12h)     PAL[clock_fmt]=' {:%I:%M %p}';  PAL[clock_interval]=60 ;;
-    *)       PAL[clock_fmt]=' {:%H:%M:%S}';  PAL[clock_interval]=1 ;;
+    seconds)   PAL[clock_fmt]=' {:%H:%M:%S}';         PAL[clock_interval]=1 ;;
+    minutes)   PAL[clock_fmt]=' {:%H:%M}';            PAL[clock_interval]=10 ;;
+    12h)       PAL[clock_fmt]=' {:%I:%M %p}';         PAL[clock_interval]=10 ;;
+    12h-sec)   PAL[clock_fmt]=' {:%I:%M:%S %p}';      PAL[clock_interval]=1 ;;
+    date)      PAL[clock_fmt]=' {:%a %d %b}';         PAL[clock_interval]=60 ;;
+    day-time)  PAL[clock_fmt]=' {:%a %H:%M}';         PAL[clock_interval]=10 ;;
+    datetime)  PAL[clock_fmt]=' {:%d %b  %H:%M}';    PAL[clock_interval]=10 ;;
+    iso)       PAL[clock_fmt]=' {:%Y-%m-%d %H:%M}';   PAL[clock_interval]=10 ;;
+    *)         PAL[clock_fmt]=' {:%H:%M:%S}';         PAL[clock_interval]=1 ;;
   esac
+
+  # derived: uniform module separator (bar_module_sep). A hairline or dot
+  # placed on the LEFT of every right-group module except the first, so it
+  # reads as an even divider — no single module (GPU) is special anymore.
+  # No '|' allowed (render sed delimiter).
+  case "${PAL[bar_module_sep]}" in
+    line)  PAL[bar_sep_css]='.modules-right widget:not(:first-child) > * { border-left: 1px solid alpha(@green, 0.28); }' ;;
+    dot)   PAL[bar_sep_css]='.modules-right widget:not(:first-child) > *::before { content: "·"; color: alpha(@green, 0.5); margin: 0 4px; }' ;;
+    thick) PAL[bar_sep_css]='.modules-right widget:not(:first-child) > * { border-left: 2px solid alpha(@green, 0.4); }' ;;
+    *)     PAL[bar_sep_css]='' ;;
+  esac
+
+  # derived: text glow on stat modules (bar_glow_text)
+  [ "${PAL[bar_glow_text]}" = off ] \
+    && PAL[bar_glow_text_css]='' \
+    || PAL[bar_glow_text_css]='#cpu, #memory, #temperature, #disk, #network, #pulseaudio, #custom-gpu { text-shadow: 0 0 6px alpha(currentColor, 0.6); }'
 
   # derived shades — computed mixes so widget hover/pressed states follow the
   # palette automatically (no extra keys for the user to define).
@@ -554,6 +588,8 @@ apply_theme() {
   render "$REPO/config/waybar/colors.css.tmpl"            "$CFG/waybar/colors.css"
   render "$REPO/config/waybar/style.css.tmpl"             "$CFG/waybar/style.css"
   render "$REPO/config/waybar/config.jsonc.tmpl"          "$CFG/waybar/config.jsonc"
+  render "$REPO/config/waybar/scripts/gpu.sh.tmpl"         "$CFG/waybar/scripts/gpu.sh"
+  chmod +x "$CFG/waybar/scripts/gpu.sh" 2>/dev/null || true
   render "$REPO/config/hypr/theme-colors.conf.tmpl"       "$CFG/hypr/theme-colors.conf"
   render "$REPO/config/hypr/hyprlock.conf.tmpl"           "$CFG/hypr/hyprlock.conf"
   render "$REPO/config/kitty/theme-structure.conf.tmpl"   "$CFG/kitty/theme-structure.conf"
@@ -713,7 +749,7 @@ save_theme() {  # $1=new slug
              bar_margin_x bar_spacing bar_radius bar_opacity bar_border_width \
              bar_padding bar_tray_size bar_font_size \
              bar_style bar_layer bar_autohide bar_uppercase bar_verbosity \
-             bar_ws_style bar_accent_style bar_blink \
+             bar_ws_style bar_accent_style bar_blink bar_module_sep bar_glow_text \
              bar_workspaces bar_clock bar_mod_window bar_mod_cpu bar_mod_temp \
              bar_mod_memory bar_mod_gpu bar_mod_disk bar_mod_audio bar_mod_network \
              bar_mod_bluetooth bar_mod_uptime bar_mod_kernel bar_mod_tray bar_mod_power \
@@ -793,9 +829,12 @@ bar_layer|Bar layer|choice|top,bottom
 bar_autohide|Auto-hide bar|choice|off,on
 bar_uppercase|Uppercase text|choice|off,on
 bar_verbosity|Module detail|choice|verbose,normal,minimal,icons
-bar_ws_style|Workspace style|choice|pills,numbers,dots
-bar_accent_style|Active accent style|choice|fill,underline,outline
+bar_ws_style|Workspace style|choice|pills,numbers,dots,bars
+bar_accent_style|Active accent style|choice|fill,underline,outline,glow,dot
 bar_blink|Prompt blink|choice|on,off
+bar_module_sep|Module separator|choice|none,line,dot,thick
+bar_glow_text|Neon text glow|choice|off,on
+bar_clock|Clock style|choice|seconds,minutes,12h,12h-sec,date,day-time,datetime,iso
 bar_height|Bar height|int:20:56:2|px
 bar_margin|Bar edge margin|int:0:24:2|gap to the screen edge the bar hugs
 bar_margin_x|Bar side margin|int:0:40:2|gap on the left & right
@@ -807,7 +846,6 @@ bar_padding|Bar padding|int:2:20:1|horizontal room inside each module
 bar_tray_size|Tray icon size|int:12:28:1|px system-tray icons
 bar_font_size|Bar font size|int:9:20:1|px (independent of UI font size)
 bar_workspaces|Workspaces shown|int:1:10:1|persistent workspace pills
-bar_clock|Clock style|choice|seconds,minutes,12h
 bar_mod_window|Window title|choice|on,off
 bar_mod_cpu|CPU module|choice|on,off
 bar_mod_temp|Temperature module|choice|on,off
@@ -1342,9 +1380,12 @@ randomise_bar() {
   set_override bar_style    "$(_rpick merged merged islands flat minimal)"
   set_override bar_uppercase "$(_rpick off off off on)"
   set_override bar_verbosity "$(_rpick verbose normal normal minimal icons)"
-  set_override bar_ws_style   "$(_rpick pills pills numbers dots)"
-  set_override bar_accent_style "$(_rpick fill fill underline outline)"
+  set_override bar_ws_style   "$(_rpick pills pills numbers dots bars)"
+  set_override bar_accent_style "$(_rpick fill fill underline outline glow dot)"
   set_override bar_blink      "$(_rpick on off)"
+  set_override bar_module_sep "$(_rpick none none none line dot)"
+  set_override bar_glow_text  "$(_rpick off off on)"
+  set_override bar_clock      "$(_rpick seconds seconds minutes date datetime day-time)"
   set_override bar_height   "$(_reven 26 40)"
   local m; m="$(_reven 0 12)"
   set_override bar_margin   "$m"                             # gap to hugged edge

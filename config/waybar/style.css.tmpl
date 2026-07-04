@@ -29,6 +29,13 @@ window#waybar {
     {{bar_item_css}}
 }
 
+/* Uniform module separator (bar_module_sep): a hairline / dot between every
+   module in the right group, applied evenly — no module is special. */
+{{bar_sep_css}}
+
+/* Optional neon text-glow on stat modules (bar_glow_text) */
+{{bar_glow_text_css}}
+
 @keyframes blink {
     0%   { color: @green; text-shadow: 0 0 6px @green; }
     49%  { color: @green; text-shadow: 0 0 6px @green; }
@@ -83,12 +90,11 @@ window#waybar {
 #temperature.critical { color: @red; text-shadow: 0 0 8px @red; }
 #memory     { color: @dimgrn; }
 
-/* GPU zone — cyan, separated from CPU zone */
+/* GPU zone — cyan. Separator (if any) is applied uniformly via
+   bar_module_sep to EVERY module, not just this one. */
 #custom-gpu {
     color: @cyan;
-    border-left: 1px solid alpha(@green, 0.35);
-    border-right: 1px solid alpha(@green, 0.35);
-    margin: 2px 4px;
+    margin: 2px 0;
 }
 #custom-gpu.critical { color: @red; text-shadow: 0 0 8px @red; }
 #disk       { color: @dimgrn; }

@@ -1,0 +1,25 @@
+#!/bin/sh
+# gpu — nvidia-smi poller for waybar (json output). Format follows bar_verbosity
+# via the {{fmt_gpu}} template string rendered by `wear`.
+out=$(nvidia-smi --query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,power.draw --format=csv,noheader,nounits 2>/dev/null)
+[ -z "$out" ] && { printf '{"text":"","class":"off"}\n'; exit 0; }
+
+util=$(echo "$out"  | cut -d, -f1 | tr -d ' ')
+temp=$(echo "$out"  | cut -d, -f2 | tr -d ' ')
+mused=$(echo "$out" | cut -d, -f3 | tr -d ' ')
+mtot=$(echo "$out"  | cut -d, -f4 | tr -d ' ')
+pwr=$(echo "$out"   | cut -d, -f5 | tr -d ' ')
+
+class=""
+[ "$temp" -ge 80 ] 2>/dev/null && class="critical"
+
+vram=$((mused * 100 / mtot))
+
+# {{fmt_gpu}} uses %U (util%), %V (vram%), %T (temp), %M (mem used MB),
+# %N (mem total MB), %P (power W). Only the placeholders present are shown.
+text="{{fmt_gpu}}"
+text=$(printf '%s' "$text" \
+  | sed "s/%U/${util}/g; s/%V/${vram}/g; s/%T/${temp}/g; s/%M/${mused}/g; s/%N/${mtot}/g; s/%P/${pwr}/g")
+
+printf '{"text":"%s","tooltip":"GPU\\nutil: %s%%  temp: %s°C\\nvram: %sM / %sM\\npower: %sW","class":"%s"}\n' \
+    "$text" "$util" "$temp" "$mused" "$mtot" "$pwr" "$class"
