@@ -698,6 +698,14 @@ apply_theme() {
   chmod +x "$CFG/waybar/scripts/gpu.sh" "$CFG/waybar/scripts/cpu.sh" 2>/dev/null || true
   info "rendered config templates"
 
+  # FAST PATH: a live property tweak (wear set / GUI slider) only changes the
+  # rendered config files above + the live apps below. The desktop-integration
+  # steps that follow (qt5ct/qt6ct confs, GTK settings.ini rewrites, gsettings,
+  # KDE kdeglobals, hyprctl setcursor) only push theme / icon / cursor NAMES and
+  # the dark|light hint -- none of which change on a tweak. Skipping them is what
+  # takes a single-property change from ~0.35s down to well under 0.1s. A full
+  # theme switch leaves WEAR_FAST unset and does everything.
+  if [ "${WEAR_FAST:-0}" != 1 ]; then
   # point qt5ct/qt6ct at the freshly rendered color scheme + set widget style/font
   for qc in "$CFG/qt5ct/qt5ct.conf" "$CFG/qt6ct/qt6ct.conf"; do
     [ -f "$qc" ] || continue
@@ -752,6 +760,7 @@ apply_theme() {
   elif command -v kwriteconfig5 >/dev/null 2>&1; then
     kwriteconfig5 --file kdeglobals --group General --key ColorScheme "$THEME_DISPLAY" 2>/dev/null || true
   fi
+  fi   # end WEAR_FAST guard
 
   # 4. wallpaper shader (neowall)
   if [ -n "$WALL_SHADER" ] && command -v neowall >/dev/null 2>&1; then
@@ -1147,6 +1156,85 @@ theme_glyph() {
   esac
 }
 
+# theme_card <slug> — render a compact truecolor "mini desktop" preview of a
+# theme straight in the terminal: a titlebar strip in the accent, a window body
+# in bg/surface with sample fg text, and the accent + ANSI swatch row. Reads the
+# theme file directly (no apply), so it's safe to call for any theme. Uses
+# 24-bit ANSI escapes (\033[38/48;2;r;g;bm) — every modern terminal supports it.
+theme_card() {
+  local slug="$1" pad="${2:-  }"
+  [ -f "$THEMES_DIR/$slug.theme" ] || return 1
+  local bg surface fg fg_dim accent accent2 accent3 nm
+  eval "$( set -a; . "$THEMES_DIR/$slug.theme"
+           printf 'bg=%q surface=%q fg=%q fg_dim=%q ' \
+             "$bg" "${surface:-$bg}" "$fg" "${fg_dim:-$fg}"
+           printf 'accent=%q accent2=%q accent3=%q nm=%q' \
+             "$accent" "${accent2:-$accent}" "${accent3:-$accent}" "${name:-$slug}" )"
+  # build fg/bg escape strings for each colour
+  local esc; _fg() { local h="$1"; printf -v esc '\033[38;2;%d;%d;%dm' $((16#${h:0:2})) $((16#${h:2:2})) $((16#${h:4:2})); printf '%s' "$esc"; }
+  _bg() { local h="$1"; printf -v esc '\033[48;2;%d;%d;%dm' $((16#${h:0:2})) $((16#${h:2:2})) $((16#${h:4:2})); printf '%s' "$esc"; }
+  local R=$'\033[0m'
+  local B_acc; B_acc="$(_bg "$accent")"; local F_bg; F_bg="$(_fg "$bg")"
+  local B_bg; B_bg="$(_bg "$bg")"; local F_fg; F_fg="$(_fg "$fg")"
+  local F_dim; F_dim="$(_fg "$fg_dim")"; local F_acc; F_acc="$(_fg "$accent")"
+  local F_a2; F_a2="$(_fg "$accent2")"; local F_a3; F_a3="$(_fg "$accent3")"
+  local cur=""; [ "$slug" = "$(current_theme 2>/dev/null)" ] && cur="  ${F_acc}● active${R}"
+  # line 1 — titlebar: accent bar, window dots + theme name, padded to 34 cols
+  printf '%s%s%s  ● ● ●   %-22s%s%s\n' "$pad" "$B_acc" "$F_bg" "$nm" "$R" "$cur"
+  # line 2 — window body: bg fill, a shell prompt, then accent swatch chips
+  printf '%s%s  %sprompt %swear %s▸ %s███ %s███ %s███   %s%s\n' \
+    "$pad" "$B_bg" "$F_dim" "$F_fg" "$F_acc" "$F_acc" "$F_a2" "$F_a3" "$F_dim" "$R"
+}
+
+# gallery — print a theme_card for every installed theme (the terminal answer
+# to "what do these look like?" without applying each one).
+gallery() {
+  local slug
+  echo
+  for slug in $(list_themes); do
+    theme_card "$slug"
+    echo
+  done
+  info "apply one:  wear <name>   ·   cycle them:  wear demo"
+}
+
+# demo [--interval N] [--loop] [--shuffle] — cycle through every theme, applying
+# each live with a pause between. Built for screen recordings: run it, hit
+# record, and the whole desktop repaints through the full theme set. Restores
+# the theme you started on when it finishes (Ctrl-C also restores).
+demo() {
+  local interval=2 loop=0 shuffle=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --interval|-i) interval="${2:-2}"; shift 2 ;;
+      --loop|-l)     loop=1; shift ;;
+      --shuffle|-s)  shuffle=1; shift ;;
+      *) shift ;;
+    esac
+  done
+  local start; start="$(current_theme)"
+  local -a themes; mapfile -t themes < <(list_themes)
+  [ "$shuffle" = 1 ] && mapfile -t themes < <(printf '%s\n' "${themes[@]}" | shuf)
+  # restore the starting theme on exit / interrupt
+  local restored=0
+  _demo_restore() { [ "$restored" = 1 ] && return; restored=1; echo; apply_theme "$start" keep >/dev/null 2>&1; say "demo done — back on ${BOLD}$(pretty_name "$start")${NC}"; }
+  trap '_demo_restore; exit 0' INT TERM
+  say "cycling ${#themes[@]} themes every ${interval}s — Ctrl-C to stop"
+  while :; do
+    local slug
+    for slug in "${themes[@]}"; do
+      apply_theme "$slug" >/dev/null 2>&1
+      clear 2>/dev/null || true
+      theme_card "$slug"
+      echo
+      sleep "$interval"
+    done
+    [ "$loop" = 1 ] || break
+  done
+  trap - INT TERM
+  _demo_restore
+}
+
 pick() {
   local themes slug
   mapfile -t themes < <(list_themes)
@@ -1184,10 +1272,11 @@ pick() {
     [ -n "$sel" ] && apply_theme "$sel"
     return 0
   else
-    echo "Available themes:"; local i=1
+    echo "Available themes:"; echo; local i=1
     for slug in "${themes[@]}"; do
-      local mark=""; [ "$slug" = "$cur" ] && mark="  (active)"
-      echo "  $i) $(pretty_name "$slug")$mark"; i=$((i+1))
+      printf '  %s%d)%s\n' "$BOLD" "$i" "$NC"
+      theme_card "$slug"
+      echo; i=$((i+1))
     done
     read -rp "pick #: " n
     [ "$n" -ge 1 ] 2>/dev/null && apply_theme "${themes[$((n-1))]}"
@@ -1207,8 +1296,10 @@ _rofi() {
        -p "$prompt" -mesg "$mesg" 2>/dev/null
 }
 
-# re-render everything, keeping overrides, for an instant live preview
-preview() { apply_theme "$(current_theme)" keep >/dev/null 2>&1; }
+# re-render everything, keeping overrides, for an instant live preview. Uses
+# the fast apply path (skips gsettings/qt/kde/cursor desktop-integration — those
+# only push theme NAMES, unchanged by a property tweak) so each nudge is snappy.
+preview() { WEAR_FAST=1 apply_theme "$(current_theme)" keep >/dev/null 2>&1; }
 
 # swatch markup for a hex value (no #)
 _sw() { printf "<span foreground='#%s'>\u2588\u2588\u2588</span>" "$1"; }
@@ -1711,7 +1802,7 @@ smart_set() {
   # "default" / "reset" → unset the override
   case "${rawv,,}" in
     default|reset|base)
-      snapshot; unset_override "$key"; apply_theme "$(current_theme)" keep
+      snapshot; unset_override "$key"; WEAR_FAST=1 apply_theme "$(current_theme)" keep
       say "$key → back to base ($(eff_value "$key"))"; return 0 ;;
   esac
 
@@ -1754,7 +1845,15 @@ smart_set() {
   esac
 
   [ "$new" = "$cur" ] && { info "$key already $cur"; return 0; }
-  snapshot; set_override "$key" "$new"; apply_theme "$(current_theme)" keep
+  snapshot; set_override "$key" "$new"
+  # keys that push a desktop-integration NAME/hint (theme, icons, cursor, mode)
+  # need the full apply; everything else takes the fast path (skips gsettings/
+  # qt/kde/cursor — unchanged by the tweak). See apply_theme's WEAR_FAST guard.
+  case "$key" in
+    mode|icon_theme|cursor_theme|gtk_theme|cursor_size|wallpaper_shader|qt_style|kvantum_theme)
+      apply_theme "$(current_theme)" keep ;;
+    *) WEAR_FAST=1 apply_theme "$(current_theme)" keep ;;
+  esac
   if [ "$type" = color ]; then
     say "$key: $(printf '\033[48;2;%d;%d;%dm  \033[0m' $((16#${cur:0:2})) $((16#${cur:2:2})) $((16#${cur:4:2}))) #$cur → $(printf '\033[48;2;%d;%d;%dm  \033[0m' $((16#${new:0:2})) $((16#${new:2:2})) $((16#${new:4:2}))) #$new"
   else
@@ -2009,6 +2108,8 @@ case "${1:-}" in
     say "randomised ${BOLD}$msg${NC} — roll again, or wear undo" ;;
   from-color|color)  shift; from_color "$@" ;;
   from|from-image)   shift; from_image "$@" ;;
+  gallery|cards)     gallery ;;
+  demo|showreel)     shift || true; demo "$@" ;;
   dark|light)        flip_mode "$1" ;;
   toggle|flip)       flip_mode toggle ;;
   doctor|check|audit) shift || true; doctor "${1:-}" ;;
@@ -2058,13 +2159,15 @@ case "${1:-}" in
     echo "  wear from <image>     full theme from a wallpaper/photo"
     echo "  wear from-color <c>   full theme from one colour (hex or name; --light)"
     echo "  wear show             truecolor palette swatches in the terminal"
+    echo "  wear gallery          mini desktop preview of every theme"
+    echo "  wear demo [-i N] [-l] cycle all themes live (for screen recordings)"
     echo
     echo "  wear update           pull the latest wear + re-deploy (look kept)" ;;
   *)
     if [ -f "$THEMES_DIR/$1.theme" ]; then snapshot; apply_theme "$1"
     elif t="$(list_themes | _match "$1")" && [ -n "$t" ]; then
       info "$1 → ${BOLD}$t${NC}"; snapshot; apply_theme "$t"
-    elif cmd="$(printf '%s\n' list current reload tweak set unset reset undo save random-accents from from-color dark light toggle doctor import export update show tweaks schema options get values help | _match "$1")" && [ -n "$cmd" ]; then
+    elif cmd="$(printf '%s\n' list current reload tweak set unset reset undo save random-accents from from-color gallery demo dark light toggle doctor import export update show tweaks schema options get values help | _match "$1")" && [ -n "$cmd" ]; then
       warn "no such theme or command: $1 — did you mean ${BOLD}wear $cmd${NC}?"; exit 1
     else
       warn "no such theme: $1"; echo; echo "Available:"; list_themes; exit 1
