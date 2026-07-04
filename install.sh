@@ -150,6 +150,28 @@ deploy_home() {
   info "~/.config/kdeglobals"
 }
 
+deploy_completions() {
+  # shell completions for `wear` (fish / bash / zsh). Each is dynamic -- it
+  # shells out to `wear list` / `wear schema` so theme + key names never drift.
+  [ -d "$REPO_DIR/completions" ] || return 0
+  say "Installing shell completions"
+  if [ -f "$REPO_DIR/completions/wear.fish" ]; then
+    mkdir -p "$CFG/fish/completions"
+    cp -a "$REPO_DIR/completions/wear.fish" "$CFG/fish/completions/wear.fish"
+    info "fish -> ~/.config/fish/completions/wear.fish"
+  fi
+  if [ -f "$REPO_DIR/completions/wear.bash" ]; then
+    mkdir -p "$HOME/.local/share/bash-completion/completions"
+    cp -a "$REPO_DIR/completions/wear.bash" "$HOME/.local/share/bash-completion/completions/wear"
+    info "bash -> ~/.local/share/bash-completion/completions/wear"
+  fi
+  if [ -f "$REPO_DIR/completions/_wear" ]; then
+    mkdir -p "$HOME/.local/share/zsh/site-functions"
+    cp -a "$REPO_DIR/completions/_wear" "$HOME/.local/share/zsh/site-functions/_wear"
+    info "zsh -> ~/.local/share/zsh/site-functions/_wear (ensure it's on \$fpath)"
+  fi
+}
+
 deploy_kde_scheme() {
   say "Installing KDE color scheme dir"
   mkdir -p "$HOME/.local/share/color-schemes"
@@ -241,6 +263,7 @@ main() {
   tune_gpu
   deploy_local_bin
   deploy_home
+  deploy_completions
   deploy_kde_scheme
   deploy_themes
   apply_icons

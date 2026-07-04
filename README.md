@@ -72,6 +72,8 @@ wear import dracula.yaml # wear any of ~250 base16 community schemes
 wear random             # 🎲 dice-roll the whole look (or: accents/shape/feel/bar/popups)
 wear undo               # take it back — 30 steps of history
 wear show               # truecolor palette swatches in the terminal
+wear gallery            # 🖼️ mini-desktop preview of every theme, in the terminal
+wear demo               # 🎬 cycle every theme live (perfect for a screen recording)
 ```
 
 Switching doesn't just recolour — it **reshapes**: gaps, borders, rounding,
@@ -90,13 +92,24 @@ shader… every theme is a whole personality.
 | `nord` | minimal calm — thin, huge gaps, slow gentle fades |
 | `rose-pine` | elegant — large pill rounding, graceful pop-in |
 
+**See them all without committing.** `wear gallery` paints a compact
+truecolor "mini desktop" for every theme right in your terminal — accent
+titlebar, window body, the accent trio as chips — so you can eyeball the whole
+set at a glance. `wear demo` goes further: it applies each theme live with a
+pause between (`-i N` seconds, `-l` to loop, `-s` to shuffle), restoring your
+starting theme when it finishes or you hit Ctrl-C. Point a screen recorder at
+it and you have an instant showreel of the entire desktop repainting.
+
 ---
 
 ## 🎛️ Live tweaker (Super+A)
 
 `wear tweak` opens a native **GTK4 / libadwaita** editor — sidebar of
 categories, real colour pickers, sliders, searchable dropdowns and font
-choosers. Every change hits the whole desktop **as you drag**.
+choosers. Every change hits the whole desktop **as you drag**, and a **live
+preview strip** at the bottom — a miniature desktop painted from your palette —
+repaints the instant you move a slider, so you see the effect before the real
+desktop even finishes reloading.
 
 - **Colours** — the full palette on one page: accents, backgrounds, surfaces,
   foregrounds, plus all 16 terminal ANSI colours.
@@ -307,6 +320,9 @@ Defaults: **JetBrainsMono Nerd Font** · **Bibata-Modern-Amber** cursor ·
 - **Restore:** everything overwritten is in `~/.phosphor-backup/<timestamp>/`.
 - **Repo location:** `wear` finds the repo at `~/wear` (or set
   `PHOSPHOR_REPO=/path`).
+- **Tab completion:** the installer drops completions for **fish**, **bash**
+  and **zsh** — `wear <Tab>` completes subcommands + theme names, `wear set
+  <Tab>` completes every property key, all pulled live from the schema.
 
 <details>
 <summary><b>Full <code>wear</code> CLI reference</b></summary>
@@ -332,6 +348,8 @@ wear export             active look as base16 yaml
 wear from <image> [name] [--light]      generate theme from an image
 wear from-color <c> [name] [--light]    generate theme from a colour
 wear show               truecolor palette swatches
+wear gallery            mini-desktop preview of every theme
+wear demo [-i N][-l][-s] cycle all themes live (screen-recording showreel)
 wear schema|values|get|options          machine-readable (drives the GUI)
 ```
 
