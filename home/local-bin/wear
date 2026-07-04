@@ -25,12 +25,13 @@ if [ -z "$REPO" ]; then
   cand="$(cd "$(dirname "$SELF")/../.." 2>/dev/null && pwd || true)"
   if [ -n "$cand" ] && [ -d "$cand/themes" ]; then REPO="$cand"; fi
 fi
-for p in "$HOME/phosphor-hypr" "$HOME/.local/share/phosphor-hypr" "$HOME/dotfiles/phosphor-hypr"; do
+for p in "$HOME/phosphor" "$HOME/.local/share/phosphor" "$HOME/dotfiles/phosphor" \
+         "$HOME/phosphor-hypr" "$HOME/.local/share/phosphor-hypr" "$HOME/dotfiles/phosphor-hypr"; do
   [ -n "$REPO" ] && break
   [ -d "$p/themes" ] && REPO="$p"
 done
 if [ -z "${REPO:-}" ] || [ ! -d "$REPO/themes" ]; then
-  echo "theme: could not find the phosphor-hypr repo (set PHOSPHOR_REPO=/path)" >&2
+  echo "wear: could not find the phosphor repo (set PHOSPHOR_REPO=/path)" >&2
   exit 1
 fi
 

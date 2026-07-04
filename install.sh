@@ -38,8 +38,6 @@ PKGS_REPO=(
 )
 PKGS_AUR=(
   neowall-git                 # GPU shader wallpaper daemon
-  catppuccin-gtk-theme-mocha  # base GTK theme the phosphor css overrides
-  catppuccin-gtk-theme-latte  # light-mode GTK base (Catppuccin Latte theme)
   papirus-folders             # recolors Papirus folders green
 )
 
@@ -71,7 +69,7 @@ deploy_config() {
   say "Deploying theme configs (backups → $BACKUP)"
   mkdir -p "$CFG"
   # copy each top-level dir under config/ into ~/.config, backing up first.
-  # Template (*.tmpl) files stay in the repo — the `theme` switcher renders them.
+  # Template (*.tmpl) files stay in the repo — `wear` renders them.
   for src in "$REPO_DIR"/config/*/; do
     name="$(basename "$src")"
     dest="$CFG/$name"
@@ -115,15 +113,15 @@ deploy_home() {
 deploy_kde_scheme() {
   say "Installing KDE color scheme dir"
   mkdir -p "$HOME/.local/share/color-schemes"
-  # the `theme` switcher renders the active scheme here; ship a baseline too
+  # `wear` renders the active scheme here; ship a baseline too
   [ -f "$REPO_DIR/kde/color-schemes/Phosphor.colors" ] && \
     cp -a "$REPO_DIR/kde/color-schemes/Phosphor.colors" "$HOME/.local/share/color-schemes/" 2>/dev/null || true
 }
 
 # --- deploy theme palettes + render the active theme -------------------------
 deploy_themes() {
-  say "Installing theme switcher + palettes"
-  # themes/ palettes are read by `theme` straight from the repo (PHOSPHOR_REPO),
+  say "Installing wear + palettes"
+  # themes/ palettes are read by `wear` straight from the repo (PHOSPHOR_REPO),
   # so nothing to copy here — just render the active/default theme now.
   local want="${PHOSPHOR_THEME:-}"
   if [ -z "$want" ] && [ -f "$CFG/phosphor/theme" ]; then want="$(cat "$CFG/phosphor/theme")"; fi
@@ -146,8 +144,8 @@ apply_icons() {
     sudo gtk-update-icon-cache -f /usr/share/icons/Papirus-Dark >/dev/null 2>&1 || true
 }
 
-# --- 4. gsettings handled by the `theme` switcher (per-theme) -----------------
-# (kept as a no-op fallback if the switcher didn't run)
+# --- 4. gsettings handled by `wear` (per-theme) --------------------------------
+# (kept as a no-op fallback if wear didn't run)
 apply_gsettings() {
   command -v gsettings >/dev/null 2>&1 || return 0
   local S=org.gnome.desktop.interface

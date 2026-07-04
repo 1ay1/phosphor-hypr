@@ -2,13 +2,15 @@
 
 # 🟢 PHOSPHOR
 
-### A themeable Hyprland desktop — switch EVERYTHING with one command
+### One palette. Your entire desktop. Live.
 
-One palette drives your **entire** desktop — Hyprland, Waybar, Kitty, Rofi,
-Dunst, GTK 3/4, Qt 5/6, KDE apps, hyprlock, satty, wlogout, cursors, icons, and
-an animated GPU-shader wallpaper. Ships with **7 themes** (Phosphor, Tokyo
-Night, Gruvbox, Catppuccin Mocha & Latte, Nord, Rosé Pine) and a `theme`
-switcher that repaints all of it live. Nothing left un-themed.
+**Phosphor** is a themeable Hyprland desktop driven by **`wear`** — a theme
+engine that repaints *everything* from a single palette file: Hyprland, Waybar,
+Kitty, Rofi, Dunst, GTK 3/4, Qt 5/6, KDE apps, hyprlock, wlogout, satty, your
+shell & fzf, cursors, icons — even the animated GPU-shader wallpaper.
+
+Change one colour and the whole desktop follows. Instantly. No logout, no
+restart, nothing left un-themed.
 
 ![Phosphor desktop](assets/screenshot-1.png)
 ![Phosphor desktop](assets/screenshot-2.png)
@@ -17,241 +19,244 @@ switcher that repaints all of it live. Nothing left un-themed.
 
 ---
 
-## ⚡ One-command install
+## ⚡ Install
 
 ```sh
-git clone https://github.com/1ay1/phosphor-hypr.git && cd phosphor-hypr && ./install.sh
+git clone https://github.com/1ay1/phosphor.git && cd phosphor && ./install.sh
 ```
 
-or, straight from the web:
+or straight from the web:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/1ay1/phosphor-hypr/main/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/1ay1/phosphor/main/bootstrap.sh | bash
 ```
 
+The installer:
 
+1. Installs every package the setup needs (repo + AUR via `paru`/`yay`)
+2. **Backs up** anything it's about to overwrite → `~/.phosphor-backup/<timestamp>/`
+3. Copies configs into `~/.config` (templates stay in the repo)
+4. Installs `wear` + `wear-gui` to `~/.local/bin` and renders the active theme
+5. Recolours **Papirus** folders and refreshes the icon cache
 
-The installer will:
-
-1. Install every package the theme needs (repo + AUR via `paru`/`yay`)
-2. **Back up** anything it's about to overwrite → `~/.phosphor-backup/<timestamp>/`
-3. Copy all configs into `~/.config` (templates stay in the repo)
-4. Install the `theme` switcher to `~/.local/bin` and **render the active theme**
-5. Recolor **Papirus** folders and refresh the icon cache
+> Arch-based distros for the package step; on anything else run
+> `PHOSPHOR_SKIP_PKGS=1 ./install.sh` and install dependencies yourself.
 
 ---
 
-## 🎨 Switching themes
+## 👕 `wear` — the theme engine
 
 ```sh
-wear                  # rofi/fzf picker (also bound to Super+Shift+T)
-wear tokyo-night      # switch directly
-wear list             # list available themes
-wear current          # print the active theme
-wear reload           # re-apply (after editing a palette)
+wear                    # theme picker (Super+Shift+T)
+wear tokyo-night        # put on a theme
+wear tweak              # live GUI editor (Super+A)
+wear from ~/wall.jpg    # 🪄 generate a theme from an image
+wear from-color 7c3aed  # 🪄 generate a theme from one colour
+wear undo               # take it back — 30 steps of history
+wear show               # truecolor palette swatches in the terminal
 ```
 
-Switching repaints **and reshapes** everything at once — not just colour but the
-whole personality: Hyprland gaps/borders/rounding/blur/animation-feel/layout,
-hyprlock, waybar shape & position, rofi geometry, dunst, kitty (font, opacity,
-padding), GTK 3/4 (+ theme engine & cursor size), Qt 5/6 (+ widget style),
-Kvantum, the KDE colour scheme, satty, wlogout, and the wallpaper shader — then
-reloads the running apps.
+Switching doesn't just recolour — it **reshapes**: gaps, borders, rounding,
+blur, animation feel, layout, bar geometry, fonts, opacity, the wallpaper
+shader… every theme is a whole personality.
 
-**Built-in themes** (each a distinct personality, not just a recolour):
+**Built-in themes:**
 
 | Theme | Personality |
 |-------|-------------|
 | `phosphor` | sharp CRT — 0 rounding, thin borders, tight gaps, snappy |
 | `tokyo-night` | soft neon — big rounding, heavy blur, bouncy pop-in |
 | `gruvbox` | cozy retro — chunky 4px borders, master layout, big gaps |
-| `catppuccin-mocha` | modern rounded — comfy medium radius, moderate |
+| `catppuccin-mocha` | modern rounded — comfy medium radius |
 | `catppuccin-latte` | clean **light** — crisp, low-glow, opaque |
 | `nord` | minimal calm — thin, huge gaps, slow gentle fades |
 | `rose-pine` | elegant — large pill rounding, graceful pop-in |
 
-### 🎛️ Live appearance tweaker
+---
 
-Want to nudge one thing without designing a whole theme? Hit **Super+A** (or run
-`wear tweak`) to open a native **GTK4 / libadwaita** editor: a sidebar of
-categories — **Colours · Shape · Feel · Bar · Type · System** — with real
-sliders, colour pickers, dropdowns and font choosers. Every change applies
-**instantly** to the whole desktop (it edits on top of the active theme). The
-header bar has a base-theme switcher, a randomise-accents shuffle, and **Save
-as new theme**.
+## 🎛️ Live tweaker (Super+A)
 
-It covers **everything** — all ~60 properties:
+`wear tweak` opens a native **GTK4 / libadwaita** editor — sidebar of
+categories, real colour pickers, sliders, searchable dropdowns and font
+choosers. Every change hits the whole desktop **as you drag**.
 
-- **Colours** — ONE page for every colour: accents, backgrounds
-  (main/alt/dim), surface, overlay, foregrounds (main/dim/faint), on-accent,
-  plus the 16 terminal ANSI colours (grouped below the palette).
+- **Colours** — the full palette on one page: accents, backgrounds, surfaces,
+  foregrounds, plus all 16 terminal ANSI colours.
 - **Shape** — rounding, border width, inner/outer gaps, tiling layout.
-- **Feel** — window opacities, blur size/passes/vibrancy, glow, animation
-  speed & style, terminal opacity & padding.
+- **Feel** — opacities, blur size/passes/vibrancy, glow, animation speed &
+  style, terminal opacity & padding.
 - **Bar** — position, height, margin, spacing, radius.
 - **Type** — UI & mono fonts, sizes, weight.
-- **System** — dark/light mode, **icon theme**, **cursor theme & size**, and
-  the **wallpaper shader** — discovered from what's actually installed
-  (searchable dropdowns).
+- **System** — dark/light mode, icon theme, cursor theme & size, wallpaper
+  shader — all discovered from what's actually installed.
 
-**Widget engines are invisible plumbing.** GTK apps sit on a neutral base
-(adw-gtk3/Adwaita, auto light/dark) and Qt apps on Fusion — both fully
-recoloured from your palette. There are no GTK-theme/Qt-style/Kvantum pickers
-in the UI because prebuilt themes carry baked-in colours that would fight the
-palette. (Power users can still force one: `wear set gtk_theme <name>`,
-`wear set qt_style kvantum`, `wear set kvantum_theme <name>`.)
+The header has a base-theme switcher, a randomise-accents shuffle, an undo
+button, and **Save as new theme**. The menu hides two generators: **Theme from
+wallpaper…** and **Theme from a colour…**.
 
-**One palette drives every engine.** You never recolour GTK or Qt yourself:
-the default `gtk_theme="auto"` sits GTK on a neutral base (adw-gtk3, or stock
-Adwaita) and the switcher *generates* the full colour set from your palette —
-libadwaita named colours, headerbars, buttons, switches, checks, sliders,
-tabs, menus, hover/pressed shades (computed mixes of your accent), plus the
-complete Qt5/Qt6 colour scheme and the KDE scheme. Change `accent` once and
-GTK apps, Qt apps, the terminal, the bar, notifications and window borders
-all follow — instantly.
-
-Prefer the keyboard? Everything is scriptable via the same CLI (this is exactly
-what the GUI drives under the hood):
+Everything the GUI does is plain CLI underneath:
 
 ```sh
-wear tweak            # GTK GUI (Super+A) — wear tweak --rofi forces the rofi menu
-wear set radius 20    # bump window rounding, live
+wear set radius 20        # nudge one thing, live
 wear set accent ff8800
-wear set gap_out 24
-wear tweaks           # show your active tweaks
-wear unset radius     # drop one tweak
-wear undo             # revert the last change — 30 steps of history
-wear reset            # clear all tweaks, back to the pure theme
-wear save my-look     # snapshot the current look as a new theme
-wear show             # truecolor palette swatches in the terminal
+wear tweaks               # list active tweaks
+wear unset radius         # drop one
+wear reset                # back to the pure theme
+wear save my-look         # snapshot the current look as a real theme
 ```
 
-### 🪄 Generate a theme from anything
+Tweaks live in `~/.config/phosphor/overrides.conf` on top of the active theme
+and are cleared when you switch base themes (save first to keep them).
+No GUI session? `wear tweak` falls back to an equivalent rofi menu.
 
-Don't design — generate. `wear` has a built-in colour engine (HSL math,
-pure awk) that turns **one seed colour** into a complete, balanced palette:
-tinted backgrounds, readable foregrounds, harmonised accent trio (±30° hues),
-and a full ANSI-16 set — then applies it to the entire desktop.
+---
+
+## 🪄 Generate a theme from anything
+
+Don't design — generate. `wear` ships a colour engine (pure-awk HSL math) that
+turns **one seed colour** into a complete, balanced palette: tinted background
+ramp, readable foregrounds, a harmonised accent trio (±30° hues), and a full
+ANSI-16 set.
 
 ```sh
-wear from ~/Pictures/wall.jpg      # theme from a wallpaper/photo
-wear from-color 7c3aed             # theme from one hex colour
-wear from-color ff7b39 sunset --light
+wear from ~/Pictures/wall.jpg          # theme from a wallpaper / photo
+wear from-color 7c3aed                 # theme from one hex colour
+wear from-color ff7b39 sunset --light  # named, light-mode
 ```
 
-`wear from <image>` quantises the image (imagemagick), scores candidates by
-saturation, picks the most vivid non-grey as the seed, and blends the
-background toward the image's actual darkest tone so the theme *feels* like
-the picture. Both generators inherit the current theme's structure (shape,
-fonts, blur…), write a real `themes/<name>.theme`, and switch to it — so a
-generated theme is a first-class theme you can tweak and keep. Don't like it?
-`wear undo`.
+`wear from <image>` quantises the image, scores candidates by saturation,
+picks the most vivid non-grey as the seed, and blends the background toward
+the image's actual darkest tone — so the theme *feels* like the picture.
+Generated themes are first-class: real `themes/<name>.theme` files you can
+tweak, save and keep. Don't like it? `wear undo`.
 
-In the GUI these live in the menu: **Theme from wallpaper…** (file picker) and
-**Theme from a colour…** (colour wheel), plus an undo button in the header.
+---
 
-### 🐚 Your shell follows too
+## 🎨 One palette drives every engine
 
-Every switch renders `~/.config/phosphor/colors.sh` — the palette as `PHOS_*`
-env vars plus a matching `FZF_DEFAULT_OPTS` colour scheme. Source it from your
-shell rc and fzf menus (and any script you write) match the desktop:
+You never recolour GTK or Qt by hand. GTK apps sit on a neutral base
+(`adw-gtk3`/Adwaita, auto light↔dark) and Qt apps on Fusion — and `wear`
+**generates** the full colour set for both from your palette: libadwaita named
+colours, headerbars, buttons, switches, checks, sliders, tabs, menus,
+hover/pressed shades (computed mixes of your accent), the complete Qt5/Qt6
+scheme, and the KDE colour scheme.
+
+Change `accent` once → GTK apps, Qt apps, the terminal, the bar, notifications
+and window borders all follow. Instantly.
+
+Your shell follows too — every switch renders `~/.config/phosphor/colors.sh`
+(the palette as `PHOS_*` vars + a matching `FZF_DEFAULT_OPTS`):
 
 ```sh
 [ -f ~/.config/phosphor/colors.sh ] && . ~/.config/phosphor/colors.sh
 ```
 
-On a headless / non-GTK session `wear tweak` automatically falls back to a
-rofi menu with the same grouped properties (stepper for numbers, swatch strip +
-`hyprpicker` eyedropper for colours, `fc-list` font picker).
+---
 
-Tweaks live in `~/.config/phosphor/overrides.conf` and are cleared when you
-switch to a different base theme (unless you save them first).
+## ✍️ Make your own theme
 
-### Add your own
-
-A theme is a single flat file. Copy one and edit the ~26 colour keys:
+A theme is one flat file of `key="value"` pairs — ~26 colours (hex, no `#`)
+plus structure:
 
 ```sh
 cp themes/nord.theme themes/my-theme.theme
-$EDITOR themes/my-theme.theme      # hex values, no leading '#'
+$EDITOR themes/my-theme.theme
 wear my-theme
 ```
 
-Every colour-bearing config is a `*.tmpl` template with `{{key}}` placeholders
-(and `{{key|rgb}}` for KDE's decimal format); the switcher renders them into
-`~/.config` for the palette you pick.
-
----
-
-## 🖥️ What's included
-
-| Component | What it themes |
-|-----------|----------------|
-| `hypr/`   | Hyprland WM, hyprlock, hypridle |
-| `waybar/` | Status bar (+ GPU script) |
-| `kitty/`  | Terminal colors |
-| `rofi/`   | App launcher (phosphor.rasi) |
-| `dunst/`  | Notifications |
-| `gtk-3.0/`, `gtk-4.0/` | GTK apps (Thunar, Nautilus, …) — full phosphor surfaces + green selection |
-| `qt5ct/`, `qt6ct/` | Qt apps via Fusion + Phosphor color scheme |
-| `Kvantum/` | Optional Kvantum theme |
-| `kde/`    | KDE Plasma **Phosphor** color scheme (Dolphin, Kate, …) |
-| `neowall/` | Animated GPU-shader wallpaper (matrix/synthwave/phosphor) |
-| `wlogout/` | Themed logout menu |
-| `satty/` | Screenshot annotation editor (grim+slurp → satty; Ctrl+C copies & saves) |
-| `hypr/scripts/` | `screenshot.sh` (grim→satty) & `record.sh` (wf-recorder toggle, NVENC) |
-| `~/.local/bin/` | `wear` (switcher) & `shader-switch.sh` (wallpaper picker) |
-| `themes/` | Palette files (`*.theme`) — one per theme, ~26 colour keys each |
-| `config/**/*.tmpl` | Templates the switcher renders into `~/.config` per theme |
-
-Fonts: **JetBrainsMono Nerd Font** · Cursor: **Bibata-Modern-Amber** · Icons: **Papirus-Dark (green folders)**
-
----
-
-## 🎨 The theme schema
-
-Each `themes/*.theme` is a flat file of `key="value"` pairs. **Colours** (~26
-hex keys, no `#`) plus **structure** (shape, spacing, fonts, blur, animation
-feel). Core structural keys:
+Core structural keys:
 
 | Key | Controls |
 |-----|----------|
-| `radius` | corner rounding everywhere (hypr, waybar, rofi, dunst, satty…) |
+| `radius` | corner rounding everywhere |
 | `border_width` | frame thickness (windows, widgets, inputs) |
 | `gap_in` / `gap_out` | inner / outer window gaps |
 | `layout` | `dwindle` or `master` |
-| `opacity_active`/`_inactive` | window opacity |
-| `blur_size`/`_passes`/`blur_vibrancy` | Hyprland + hyprlock blur |
-| `glow` | shadow / text-shadow intensity (0 flat … 1 heavy neon) |
-| `anim_speed`/`anim_bezier`/`anim_style` | animation duration, curve, feel |
-| `bar_position`/`bar_height`/`bar_margin`/`bar_radius` | waybar shape |
-| `font_ui` / `font_mono` | UI font / terminal font (swapped globally) |
-| `font_size_ui`/`font_size_term`/`font_weight` | sizes & weight |
-| `term_opacity`/`term_padding` | kitty |
-| `cursor_size` | cursor scale |
-| `gtk_theme`/`qt_style`/`kvantum_theme` | widget **engines** per theme |
-| `icon_theme`/`cursor_theme`/`mode`/`wallpaper_shader` | icons, cursor, dark/light, wallpaper |
+| `opacity_active` / `_inactive` | window opacity |
+| `blur_size` / `_passes` / `blur_vibrancy` | Hyprland + hyprlock blur |
+| `glow` | shadow / text-shadow intensity (0 flat … 1 neon) |
+| `anim_speed` / `anim_bezier` / `anim_style` | animation feel |
+| `bar_position` / `bar_height` / `bar_margin` / `bar_radius` | waybar shape |
+| `font_ui` / `font_mono` + sizes / weight | typography |
+| `term_opacity` / `term_padding` | kitty |
+| `mode` / `icon_theme` / `cursor_theme` / `cursor_size` | system |
+| `wallpaper_shader` | animated GLSL wallpaper (neowall) |
+
+Every colour-bearing config in `config/` is a `*.tmpl` template with `{{key}}`
+placeholders; `wear` renders them into `~/.config`.
 
 ---
 
-## 🔧 Notes & customization
+## 🖥️ What's in the box
 
-- **NVIDIA:** `hypr/hyprland.conf` sets NVIDIA env vars. On AMD/Intel, comment out
-  the `LIBVA_DRIVER_NAME`, `__GLX_VENDOR_LIBRARY_NAME`, and `NVD_BACKEND` lines.
-- **Qt/KDE:** after install, **log out and back in** so `QT_QPA_PLATFORMTHEME=qt6ct`
-  and the color scheme apply to Qt6 apps.
+| Component | What it themes |
+|-----------|----------------|
+| `hypr/` | Hyprland WM, hyprlock, hypridle, screenshot & recording scripts |
+| `waybar/` | Status bar (+ GPU module) |
+| `kitty/` | Terminal |
+| `rofi/` | Launcher + pickers |
+| `dunst/` | Notifications |
+| `gtk-3.0/`, `gtk-4.0/` | GTK apps — full palette-generated theming |
+| `qt5ct/`, `qt6ct/`, `Kvantum/` | Qt apps |
+| `kde/` | KDE colour scheme (Dolphin, Kate, …) |
+| `neowall/` | 40+ animated GPU-shader wallpapers |
+| `wlogout/` | Logout menu |
+| `satty/` | Screenshot annotator |
+| `home/local-bin/` | `wear`, `wear-gui`, `shader-switch.sh` |
+| `themes/` | The palette files |
+
+Defaults: **JetBrainsMono Nerd Font** · **Bibata-Modern-Amber** cursor ·
+**Papirus-Dark** icons (green folders).
+
+---
+
+## 🔧 Notes
+
+- **NVIDIA:** `hypr/hyprland.conf` sets NVIDIA env vars. On AMD/Intel comment
+  out the `LIBVA_DRIVER_NAME`, `__GLX_VENDOR_LIBRARY_NAME` and `NVD_BACKEND` lines.
+- **Qt/KDE:** log out and back in once after install so
+  `QT_QPA_PLATFORMTHEME=qt6ct` applies to Qt6 apps.
+- **Best GTK3 result:** install `adw-gtk-theme` (the installer does) — `wear`
+  auto-selects it as the neutral base.
 - **Skip packages:** `PHOSPHOR_SKIP_PKGS=1 ./install.sh` deploys configs only.
 - **Restore:** everything overwritten is in `~/.phosphor-backup/<timestamp>/`.
+- **Repo location:** `wear` finds the repo at `~/phosphor` (or set
+  `PHOSPHOR_REPO=/path`).
+
+<details>
+<summary><b>Full <code>wear</code> CLI reference</b></summary>
+
+```
+wear                    theme picker (rofi / fzf)
+wear <name>             switch to a theme
+wear list | current     list themes / print active
+wear reload             re-apply (after editing a palette)
+wear tweak [--rofi]     live editor (GUI, or rofi menu)
+wear set <key> <value>  live override on top of the theme
+wear unset <key>        drop one override
+wear tweaks             list active overrides
+wear reset              clear all overrides
+wear undo               revert last change (30-step history)
+wear save <name>        save current look as a new theme
+wear random-accents     shuffle the accent trio
+wear from <image> [name] [--light]      generate theme from an image
+wear from-color <hex> [name] [--light]  generate theme from a colour
+wear show               truecolor palette swatches
+wear schema|values|get|options          machine-readable (drives the GUI)
+```
+
+</details>
 
 ---
 
 ## 📦 Dependencies
 
 Installed automatically: `hyprland hyprlock hypridle waybar dunst rofi kitty
-alacritty qt5ct qt6ct kvantum papirus-icon-theme bibata-cursor-theme
-ttf-jetbrains-mono-nerd ttf-firacode-nerd satty grim slurp wf-recorder jq fzf hyprpicker wlogout
-brightnessctl playerctl pipewire wireplumber dolphin wl-clipboard cliphist
-polkit-gnome libnotify` · AUR: `neowall-git catppuccin-gtk-theme-mocha catppuccin-gtk-theme-latte papirus-folders`
+qt5ct qt6ct kvantum papirus-icon-theme bibata-cursor-theme
+ttf-jetbrains-mono-nerd satty grim slurp wf-recorder jq fzf hyprpicker wlogout
+brightnessctl playerctl pipewire wireplumber wl-clipboard cliphist
+polkit-gnome libnotify python-gobject gtk4 libadwaita adw-gtk-theme
+imagemagick` · AUR: `neowall-git papirus-folders`
 
 ---
 
