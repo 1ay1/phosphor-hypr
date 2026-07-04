@@ -429,7 +429,7 @@ save_theme() {  # $1=new slug
 tweak_schema() {
   cat <<'SCHEMA'
 ## Colours
-accent|Accent|color|primary highlight
+accent|Accent|color|primary highlight — drives everything
 accent2|Accent 2|color|secondary
 accent3|Accent 3|color|tertiary
 on_accent|On accent|color|text on accent fills
@@ -441,21 +441,20 @@ overlay|Overlay|color|borders/inactive
 fg|Foreground|color|main text
 fg_dim|Foreground dim|color|secondary text
 fg_faint|Foreground faint|color|disabled text
-## Terminal palette
-red|Red|color|errors
-green|Green|color|success
-yellow|Yellow|color|warnings
-blue|Blue|color|
-magenta|Magenta|color|
-cyan|Cyan|color|
-br_black|Bright black|color|comments/grey
-br_red|Bright red|color|
-br_green|Bright green|color|
-br_yellow|Bright yellow|color|
-br_blue|Bright blue|color|
-br_magenta|Bright magenta|color|
-br_cyan|Bright cyan|color|
-br_white|Bright white|color|
+red|Red|color|errors · terminal
+green|Green|color|success · terminal
+yellow|Yellow|color|warnings · terminal
+blue|Blue|color|terminal
+magenta|Magenta|color|terminal
+cyan|Cyan|color|terminal
+br_black|Bright black|color|comments/grey · terminal
+br_red|Bright red|color|terminal
+br_green|Bright green|color|terminal
+br_yellow|Bright yellow|color|terminal
+br_blue|Bright blue|color|terminal
+br_magenta|Bright magenta|color|terminal
+br_cyan|Bright cyan|color|terminal
+br_white|Bright white|color|terminal
 ## Shape
 radius|Corner radius|int:0:30:2|window rounding px
 border_width|Border width|int:0:8:1|px
@@ -471,6 +470,8 @@ blur_vibrancy|Blur vibrancy|float:0.0:1.0:0.05|colour saturation in blur
 glow|Glow|float:0.0:1.0:0.05|shadow bloom
 anim_speed|Anim speed|int:1:12:1|duration (higher = slower)
 anim_style|Anim style|choice|slide,popin,fade
+term_opacity|Term opacity|float:0.5:1.0:0.02|kitty background
+term_padding|Term padding|int:0:30:2|kitty window padding px
 ## Bar
 bar_position|Bar position|choice|top,bottom
 bar_height|Bar height|int:20:56:2|px
@@ -483,9 +484,6 @@ font_mono|Mono font|font|terminal
 font_size_ui|UI font size|int:9:20:1|pt
 font_size_term|Term font size|float:8:20:0.5|pt
 font_weight|Font weight|choice|normal,bold
-## Terminal
-term_opacity|Term opacity|float:0.5:1.0:0.02|kitty background
-term_padding|Term padding|int:0:30:2|kitty window padding px
 ## Engines
 mode|Dark / light|choice|dark,light
 gtk_theme|GTK theme|pick:gtk_theme|widget theme for GTK apps

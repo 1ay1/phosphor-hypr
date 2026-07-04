@@ -24,14 +24,17 @@ WEAR = os.environ.get("WEAR_BIN") or shutil.which("wear") \
 
 CATEGORY_ICONS = {
     "Colours": "applications-graphics-symbolic",
-    "Terminal palette": "utilities-terminal-symbolic",
     "Shape": "view-grid-symbolic",
     "Feel": "weather-clear-symbolic",
     "Bar": "view-dual-symbolic",
     "Type": "font-x-generic-symbolic",
-    "Terminal": "utilities-terminal-symbolic",
     "Engines": "applications-system-symbolic",
 }
+
+# Inside the single Colours page, split rows into titled groups for scanning.
+ANSI_KEYS = {"red", "green", "yellow", "blue", "magenta", "cyan",
+             "br_black", "br_red", "br_green", "br_yellow", "br_blue",
+             "br_magenta", "br_cyan", "br_white"}
 
 
 def wear(*args: str, capture: bool = True) -> str:
@@ -233,10 +236,22 @@ class WearWindow(Adw.ApplicationWindow):
 
             # content page
             page = Adw.PreferencesPage()
-            grp = Adw.PreferencesGroup(title=cat)
-            page.add(grp)
-            for p in props:
-                grp.add(self._build_row(p))
+            if cat == "Colours":
+                # one section, but grouped for scanability
+                ui_grp = Adw.PreferencesGroup(
+                    title="Palette",
+                    description="Every colour below drives GTK, Qt, KDE, the bar, "
+                                "terminal, notifications and window borders at once.")
+                term_grp = Adw.PreferencesGroup(title="Terminal ANSI (also used as semantic colours)")
+                page.add(ui_grp)
+                page.add(term_grp)
+                for p in props:
+                    (term_grp if p["key"] in ANSI_KEYS else ui_grp).add(self._build_row(p))
+            else:
+                grp = Adw.PreferencesGroup(title=cat)
+                page.add(grp)
+                for p in props:
+                    grp.add(self._build_row(p))
             scroller = Gtk.ScrolledWindow(child=page, vexpand=True)
             self.stack.add_named(scroller, cat)
 
