@@ -535,7 +535,7 @@ load_palette() {
     date)      PAL[clock_fmt]=' {:%a %d %b}';         PAL[clock_interval]=60 ;;
     day-time)  PAL[clock_fmt]=' {:%a %H:%M}';         PAL[clock_interval]=10 ;;
     datetime)  PAL[clock_fmt]=' {:%d %b  %H:%M}';    PAL[clock_interval]=10 ;;
-    iso)       PAL[clock_fmt]=' {:%Y-%m-%d %H:%M}';   PAL[clock_interval]=10 ;;
+    iso)       PAL[clock_fmt]=' {:%Y-%m-%d %H:%M:%S}'; PAL[clock_interval]=1 ;;
     *)         PAL[clock_fmt]=' {:%H:%M:%S}';         PAL[clock_interval]=1 ;;
   esac
 
