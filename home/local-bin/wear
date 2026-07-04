@@ -507,14 +507,16 @@ load_palette() {
     *)         PAL[clock_fmt]=' {:%H:%M:%S}';         PAL[clock_interval]=1 ;;
   esac
 
-  # derived: uniform module separator (bar_module_sep). A hairline or dot
-  # placed on the LEFT of every right-group module except the first, so it
-  # reads as an even divider — no single module (GPU) is special anymore.
-  # No '|' allowed (render sed delimiter).
+  # derived: uniform module separator (bar_module_sep). Applied via explicit
+  # module-ID selectors (waybar's 'widget:not(:first-child)' pseudo-tree is
+  # unreliable) so it shows in every bar_style. The left group's arch/window
+  # are excluded; the divider sits on the right-group stat modules only, evenly
+  # — no single module (GPU) is special anymore. No '|' (render sed delimiter).
+  local _seprule="#memory, #temperature, #disk, #custom-gpu, #pulseaudio, #network, #bluetooth, #custom-uptime, #custom-kernel, #custom-power"
   case "${PAL[bar_module_sep]}" in
-    line)  PAL[bar_sep_css]='.modules-right widget:not(:first-child) > * { border-left: 1px solid alpha(@green, 0.28); }' ;;
-    dot)   PAL[bar_sep_css]='.modules-right widget:not(:first-child) > *::before { content: "·"; color: alpha(@green, 0.5); margin: 0 4px; }' ;;
-    thick) PAL[bar_sep_css]='.modules-right widget:not(:first-child) > * { border-left: 2px solid alpha(@green, 0.4); }' ;;
+    line)  PAL[bar_sep_css]="$_seprule { border-left: 1px solid alpha(@green, 0.3); padding-left: 8px; margin-left: 4px; }" ;;
+    thick) PAL[bar_sep_css]="$_seprule { border-left: 2px solid alpha(@green, 0.45); padding-left: 8px; margin-left: 4px; }" ;;
+    dot)   PAL[bar_sep_css]="$_seprule { border-left: 1px dotted alpha(@green, 0.45); padding-left: 8px; margin-left: 4px; }" ;;
     *)     PAL[bar_sep_css]='' ;;
   esac
 
