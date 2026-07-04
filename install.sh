@@ -30,13 +30,14 @@ PKGS_REPO=(
   papirus-icon-theme bibata-cursor-theme
   ttf-jetbrains-mono-nerd ttf-firacode-nerd ttf-nerd-fonts-symbols
   wl-clipboard cliphist grim slurp polkit-gnome network-manager-applet blueman libnotify
-  satty wf-recorder jq hyprpicker wlogout brightnessctl playerctl
+  satty wf-recorder jq fzf hyprpicker wlogout brightnessctl playerctl
   pipewire wireplumber dolphin gvfs libcanberra
   glib2 python
 )
 PKGS_AUR=(
   neowall-git                 # GPU shader wallpaper daemon
   catppuccin-gtk-theme-mocha  # base GTK theme the phosphor css overrides
+  catppuccin-gtk-theme-latte  # light-mode GTK base (Catppuccin Latte theme)
   papirus-folders             # recolors Papirus folders green
 )
 
@@ -67,13 +68,15 @@ backup() {   # $1 = target path to preserve if it exists
 deploy_config() {
   say "Deploying theme configs (backups → $BACKUP)"
   mkdir -p "$CFG"
-  # copy each top-level dir under config/ into ~/.config, backing up first
+  # copy each top-level dir under config/ into ~/.config, backing up first.
+  # Template (*.tmpl) files stay in the repo — the `theme` switcher renders them.
   for src in "$REPO_DIR"/config/*/; do
     name="$(basename "$src")"
     dest="$CFG/$name"
     backup "$dest"
     mkdir -p "$dest"
     cp -a "$src." "$dest/"
+    find "$dest" -name '*.tmpl' -delete 2>/dev/null || true
     info "~/.config/$name"
   done
 
@@ -108,10 +111,25 @@ deploy_home() {
 }
 
 deploy_kde_scheme() {
-  say "Installing KDE Phosphor color scheme"
+  say "Installing KDE color scheme dir"
   mkdir -p "$HOME/.local/share/color-schemes"
-  cp -a "$REPO_DIR/kde/color-schemes/Phosphor.colors" "$HOME/.local/share/color-schemes/"
-  info "~/.local/share/color-schemes/Phosphor.colors"
+  # the `theme` switcher renders the active scheme here; ship a baseline too
+  [ -f "$REPO_DIR/kde/color-schemes/Phosphor.colors" ] && \
+    cp -a "$REPO_DIR/kde/color-schemes/Phosphor.colors" "$HOME/.local/share/color-schemes/" 2>/dev/null || true
+}
+
+# --- deploy theme palettes + render the active theme -------------------------
+deploy_themes() {
+  say "Installing theme switcher + palettes"
+  # themes/ palettes are read by `theme` straight from the repo (PHOSPHOR_REPO),
+  # so nothing to copy here — just render the active/default theme now.
+  local want="${PHOSPHOR_THEME:-}"
+  if [ -z "$want" ] && [ -f "$CFG/phosphor/theme" ]; then want="$(cat "$CFG/phosphor/theme")"; fi
+  [ -z "$want" ] && want="phosphor"
+  info "rendering theme: $want"
+  # run the freshly-installed switcher; PHOSPHOR_REPO points at this checkout
+  PHOSPHOR_REPO="$REPO_DIR" "$HOME/.local/bin/theme" "$want" >/dev/null 2>&1 \
+    || warn "theme render failed (run: theme $want)"
 }
 
 # --- 3. icons: green Papirus folders -----------------------------------------
@@ -126,16 +144,12 @@ apply_icons() {
     sudo gtk-update-icon-cache -f /usr/share/icons/Papirus-Dark >/dev/null 2>&1 || true
 }
 
-# --- 4. gsettings (GTK apps read these under Wayland) -------------------------
+# --- 4. gsettings handled by the `theme` switcher (per-theme) -----------------
+# (kept as a no-op fallback if the switcher didn't run)
 apply_gsettings() {
   command -v gsettings >/dev/null 2>&1 || return 0
-  say "Applying gsettings (GTK theme/icon/cursor)"
   local S=org.gnome.desktop.interface
-  gsettings set $S gtk-theme       'catppuccin-mocha-green-standard+default' 2>/dev/null || true
-  gsettings set $S icon-theme      'Papirus-Dark' 2>/dev/null || true
-  gsettings set $S cursor-theme    'Bibata-Modern-Amber' 2>/dev/null || true
-  gsettings set $S color-scheme    'prefer-dark' 2>/dev/null || true
-  gsettings set $S font-name       'JetBrainsMono Nerd Font 10' 2>/dev/null || true
+  gsettings set $S font-name 'JetBrainsMono Nerd Font 10' 2>/dev/null || true
 }
 
 # --- 5. Kvantum theme --------------------------------------------------------
@@ -160,6 +174,7 @@ main() {
   deploy_local_bin
   deploy_home
   deploy_kde_scheme
+  deploy_themes
   apply_icons
   apply_gsettings
   apply_kvantum
@@ -167,8 +182,9 @@ main() {
   echo
   say "Done! 🟢"
   echo -e "   Backups of anything overwritten are in: ${BOLD}$BACKUP${NC}"
-  echo -e "   Reload Hyprland:  ${BOLD}hyprctl reload${NC}"
-  echo -e "   For Qt/KDE changes, ${BOLD}log out and back in${NC}."
+  echo -e "   Switch themes:  ${BOLD}theme${NC} (picker) or ${BOLD}theme <name>${NC} · also ${BOLD}Super+Shift+T${NC}"
+  echo -e "   Available:      ${BOLD}theme list${NC}"
+  echo -e "   Reload Hyprland: ${BOLD}hyprctl reload${NC} · For Qt/KDE, ${BOLD}log out and back in${NC}."
   echo
   warn "NVIDIA note: hyprland.conf sets NVIDIA env vars. On AMD/Intel, comment out"
   warn "the LIBVA_DRIVER_NAME / __GLX_VENDOR_LIBRARY_NAME / NVD_BACKEND lines."

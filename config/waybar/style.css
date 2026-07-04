@@ -1,14 +1,5 @@
-/* PHOSPHOR — green terminal-core */
-@define-color bg      #050805;
-@define-color bg2     #0a120a;
-@define-color grid    #103c22;
-@define-color green   #00ff41;
-@define-color dimgrn  #14b83a;
-@define-color cyan    #00e5ff;
-@define-color amber   #ffb000;
-@define-color red     #ff2b4a;
-@define-color text    #b7ffcc;
-@define-color subtext #4a7a5a;
+/* PHOSPHOR — waybar. Colours in colors.css (written by the `theme` switcher). */
+@import "colors.css";
 
 * {
     font-family: "JetBrainsMono Nerd Font", "Symbols Nerd Font", monospace;

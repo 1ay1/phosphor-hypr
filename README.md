@@ -2,11 +2,13 @@
 
 # 🟢 PHOSPHOR
 
-### A green-on-black terminal-aesthetic theme for Hyprland
+### A themeable Hyprland desktop — switch EVERYTHING with one command
 
-Phosphor CRT vibes across your **entire** desktop — Hyprland, Waybar, Kitty,
-Rofi, Dunst, GTK 3/4, Qt 5/6, KDE apps, cursors, icons, and an animated
-GPU-shader wallpaper. One command. Everything themed. Nothing left blue.
+One palette drives your **entire** desktop — Hyprland, Waybar, Kitty, Rofi,
+Dunst, GTK 3/4, Qt 5/6, KDE apps, hyprlock, satty, wlogout, cursors, icons, and
+an animated GPU-shader wallpaper. Ships with **7 themes** (Phosphor, Tokyo
+Night, Gruvbox, Catppuccin Mocha & Latte, Nord, Rosé Pine) and a `theme`
+switcher that repaints all of it live. Nothing left un-themed.
 
 ![Phosphor desktop](assets/screenshot-1.png)
 ![Phosphor desktop](assets/screenshot-2.png)
@@ -33,10 +35,42 @@ The installer will:
 
 1. Install every package the theme needs (repo + AUR via `paru`/`yay`)
 2. **Back up** anything it's about to overwrite → `~/.phosphor-backup/<timestamp>/`
-3. Copy all configs into `~/.config`
-4. Install the KDE **Phosphor** color scheme + fix `kdeglobals`
-5. Recolor **Papirus** folders green and refresh the icon cache
-6. Apply GTK theme/icon/cursor via `gsettings`
+3. Copy all configs into `~/.config` (templates stay in the repo)
+4. Install the `theme` switcher to `~/.local/bin` and **render the active theme**
+5. Recolor **Papirus** folders and refresh the icon cache
+
+---
+
+## 🎨 Switching themes
+
+```sh
+theme                 # rofi/fzf picker (also bound to Super+Shift+T)
+theme tokyo-night     # switch directly
+theme list            # list available themes
+theme current         # print the active theme
+theme reload          # re-apply (after editing a palette)
+```
+
+Switching repaints **everything at once** — Hyprland borders/shadows, hyprlock,
+waybar, rofi, dunst, kitty (live), GTK 3/4, Qt 5/6, the KDE colour scheme,
+satty, wlogout, and the wallpaper shader — then reloads the running apps.
+
+**Built-in themes:** `phosphor` · `tokyo-night` · `gruvbox` ·
+`catppuccin-mocha` · `catppuccin-latte` (light) · `nord` · `rose-pine`
+
+### Add your own
+
+A theme is a single flat file. Copy one and edit the ~26 colour keys:
+
+```sh
+cp themes/nord.theme themes/my-theme.theme
+$EDITOR themes/my-theme.theme      # hex values, no leading '#'
+theme my-theme
+```
+
+Every colour-bearing config is a `*.tmpl` template with `{{key}}` placeholders
+(and `{{key|rgb}}` for KDE's decimal format); the switcher renders them into
+`~/.config` for the palette you pick.
 
 ---
 
@@ -57,21 +91,29 @@ The installer will:
 | `wlogout/` | Themed logout menu |
 | `satty/` | Screenshot annotation editor (grim+slurp → satty; Ctrl+C copies & saves) |
 | `hypr/scripts/` | `screenshot.sh` (grim→satty) & `record.sh` (wf-recorder toggle, NVENC) |
-| `~/.local/bin/` | `shader-switch.sh` — Rofi wallpaper-shader picker |
+| `~/.local/bin/` | `theme` (switcher) & `shader-switch.sh` (wallpaper picker) |
+| `themes/` | Palette files (`*.theme`) — one per theme, ~26 colour keys each |
+| `config/**/*.tmpl` | Templates the switcher renders into `~/.config` per theme |
 
 Fonts: **JetBrainsMono Nerd Font** · Cursor: **Bibata-Modern-Amber** · Icons: **Papirus-Dark (green folders)**
 
 ---
 
-## 🎨 The palette
+## 🎨 The palette schema
 
-| Role | Hex |
-|------|-----|
-| Background | `#050805` / `#080d09` |
-| Foreground | `#b7ffcc` |
-| Accent (hot green) | `#00ff41` |
-| Link / hover (cyan) | `#00e5ff` |
-| Border | `#173b26` |
+Each `themes/*.theme` defines the same ~26 keys (hex, no `#`). Core roles:
+
+| Key | Role |
+|-----|------|
+| `bg` / `bg_alt` / `bg_dim` | surfaces (darkest → panels) |
+| `surface` / `overlay` | borders, hover fills |
+| `fg` / `fg_dim` / `fg_faint` | text (primary → faint) |
+| `accent` / `accent2` / `accent3` | primary / secondary / tertiary accents |
+| `red green yellow blue magenta cyan` | semantic + ANSI |
+| `br_*` | bright ANSI variants (terminal color8–15) |
+| `on_accent` | text drawn on top of an accent fill |
+| `mode` | `dark` or `light` (drives GTK/Qt dark hint) |
+| `wallpaper_shader` | neowall shader to load for this theme |
 
 ---
 
@@ -90,9 +132,9 @@ Fonts: **JetBrainsMono Nerd Font** · Cursor: **Bibata-Modern-Amber** · Icons: 
 
 Installed automatically: `hyprland hyprlock hypridle waybar dunst rofi kitty
 alacritty qt5ct qt6ct kvantum papirus-icon-theme bibata-cursor-theme
-ttf-jetbrains-mono-nerd ttf-firacode-nerd satty grim slurp wf-recorder jq hyprpicker wlogout
+ttf-jetbrains-mono-nerd ttf-firacode-nerd satty grim slurp wf-recorder jq fzf hyprpicker wlogout
 brightnessctl playerctl pipewire wireplumber dolphin wl-clipboard cliphist
-polkit-gnome libnotify` · AUR: `neowall-git catppuccin-gtk-theme-mocha papirus-folders`
+polkit-gnome libnotify` · AUR: `neowall-git catppuccin-gtk-theme-mocha catppuccin-gtk-theme-latte papirus-folders`
 
 ---
 

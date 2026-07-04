@@ -25,18 +25,7 @@ configuration {
     kb-mode-previous: "Shift+Left,Control+ISO_Left_Tab";
 }
 
-* {
-    bg:      #050805FA;
-    bg-alt:  #0a120aF0;
-    fg:      #b7ffcc;
-    fg-alt:  #4a7a5a;
-    accent:  #00ff41;
-    accent2: #00e5ff;
-    urgent:  #ff2b4a;
-
-    background-color: transparent;
-    text-color: @fg;
-}
+@import "colors.rasi"
 
 window {
     transparency: "real";
@@ -68,7 +57,7 @@ prompt {
 }
 
 entry {
-    text-color: #e8ffef;
+    text-color: @fg;
     cursor: text;
     cursor-color: @accent;
     placeholder: "query database_";
@@ -106,7 +95,7 @@ element alternate.active {
 element selected.normal,
 element selected.active {
     background-color: @accent;
-    text-color: #041008;
+    text-color: @on-accent;
 }
 
 element normal.urgent,

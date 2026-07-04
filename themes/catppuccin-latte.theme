@@ -1,0 +1,42 @@
+# ── CATPPUCCIN LATTE ──────────────────────────────────────────────────────
+# Soft pastel LIGHT. Proves the switcher handles light mode end-to-end.
+name="Catppuccin Latte"
+mode="light"
+
+bg="eff1f5"
+bg_alt="e6e9ef"
+bg_dim="dce0e8"
+surface="bcc0cc"
+overlay="ccd0da"
+
+fg="4c4f69"
+fg_dim="6c6f85"
+fg_faint="8c8fa1"
+
+accent="8839ef"
+accent2="1e66f5"
+accent3="ea76cb"
+
+red="d20f39"
+green="40a02b"
+yellow="df8e1d"
+blue="1e66f5"
+magenta="8839ef"
+cyan="179299"
+
+br_black="acb0be"
+br_red="d20f39"
+br_green="40a02b"
+br_yellow="df8e1d"
+br_blue="1e66f5"
+br_magenta="8839ef"
+br_cyan="179299"
+br_white="4c4f69"
+
+on_accent="eff1f5"
+
+gtk_theme="catppuccin-latte-mauve-standard+default"
+icon_theme="Papirus-Light"
+cursor_theme="Bibata-Modern-Amber"
+
+wallpaper_shader="circadian_sky"

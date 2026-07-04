@@ -1,0 +1,42 @@
+# ── CATPPUCCIN MOCHA ──────────────────────────────────────────────────────
+# Soft pastel dark. The internet's favourite comfy palette.
+name="Catppuccin Mocha"
+mode="dark"
+
+bg="1e1e2e"
+bg_alt="313244"
+bg_dim="181825"
+surface="45475a"
+overlay="313244"
+
+fg="cdd6f4"
+fg_dim="a6adc8"
+fg_faint="6c7086"
+
+accent="cba6f7"
+accent2="89b4fa"
+accent3="f5c2e7"
+
+red="f38ba8"
+green="a6e3a1"
+yellow="f9e2af"
+blue="89b4fa"
+magenta="cba6f7"
+cyan="94e2d5"
+
+br_black="585b70"
+br_red="f38ba8"
+br_green="a6e3a1"
+br_yellow="f9e2af"
+br_blue="89b4fa"
+br_magenta="cba6f7"
+br_cyan="94e2d5"
+br_white="bac2de"
+
+on_accent="1e1e2e"
+
+gtk_theme="catppuccin-mocha-mauve-standard+default"
+icon_theme="Papirus-Dark"
+cursor_theme="Bibata-Modern-Amber"
+
+wallpaper_shader="living_aurora"

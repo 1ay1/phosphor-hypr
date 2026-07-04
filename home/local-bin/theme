@@ -1,0 +1,246 @@
+#!/usr/bin/env bash
+# ============================================================================
+#  theme — one-command switcher for the whole Phosphor desktop.
+#  Switches EVERYTHING: Hyprland borders/shadows, hyprlock, waybar, rofi, dunst,
+#  kitty, GTK3/4, Qt5/6, KDE colour scheme, satty, wlogout, and the wallpaper.
+#
+#  Usage:
+#    theme                 # interactive picker (rofi if in a session, else fzf/menu)
+#    theme <name>          # switch to <name> (e.g. tokyo-night, gruvbox, phosphor)
+#    theme list            # list available themes
+#    theme current         # print the active theme
+#    theme reload          # re-apply the current theme (after editing a .theme)
+#
+#  Themes live in  $REPO/themes/*.theme  and are rendered into ~/.config via
+#  the *.tmpl templates under $REPO/config (and $REPO/kde).
+# ============================================================================
+set -euo pipefail
+
+# --- locate the repo (this script lives in $REPO/home/local-bin/) -----------
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+# Prefer an explicit env override, else derive from the script location, else
+# fall back to a couple of common clone paths.
+REPO="${PHOSPHOR_REPO:-}"
+if [ -z "$REPO" ]; then
+  cand="$(cd "$(dirname "$SELF")/../.." 2>/dev/null && pwd || true)"
+  if [ -n "$cand" ] && [ -d "$cand/themes" ]; then REPO="$cand"; fi
+fi
+for p in "$HOME/phosphor-hypr" "$HOME/.local/share/phosphor-hypr" "$HOME/dotfiles/phosphor-hypr"; do
+  [ -n "$REPO" ] && break
+  [ -d "$p/themes" ] && REPO="$p"
+done
+if [ -z "${REPO:-}" ] || [ ! -d "$REPO/themes" ]; then
+  echo "theme: could not find the phosphor-hypr repo (set PHOSPHOR_REPO=/path)" >&2
+  exit 1
+fi
+
+CFG="$HOME/.config"
+THEMES_DIR="$REPO/themes"
+STATE="$CFG/phosphor/theme"     # remembers the active theme name
+
+GREEN='\033[0;32m'; BOLD='\033[1m'; DIM='\033[2m'; RED='\033[0;31m'; NC='\033[0m'
+say()  { echo -e "${GREEN}${BOLD}::${NC} $*"; }
+info() { echo -e "   ${DIM}$*${NC}"; }
+warn() { echo -e "${RED}!!${NC} $*" >&2; }
+
+# --- helpers ----------------------------------------------------------------
+list_themes() {
+  for f in "$THEMES_DIR"/*.theme; do
+    [ -e "$f" ] || continue
+    basename "$f" .theme
+  done | sort
+}
+
+pretty_name() {  # $1 = theme slug -> its display name
+  ( set -a; . "$THEMES_DIR/$1.theme"; echo "${name:-$1}" )
+}
+
+current_theme() { [ -f "$STATE" ] && cat "$STATE" || echo "phosphor"; }
+
+# hex(RRGGBB) -> "R,G,B" decimal (for KDE .colors {{key|rgb}} tokens)
+hex_to_rgb() {
+  local h="${1#\#}"
+  printf '%d,%d,%d' "0x${h:0:2}" "0x${h:2:2}" "0x${h:4:2}"
+}
+
+# --- render a single template ($1=src.tmpl  $2=dest) using the loaded palette
+render() {
+  local src="$1" dest="$2"
+  [ -f "$src" ] || { warn "missing template: $src"; return 0; }
+  mkdir -p "$(dirname "$dest")"
+  # Build a sed program: {{KEY}} -> value, {{KEY|rgb}} -> R,G,B, {{THEME_NAME}} -> name
+  local prog="" k v
+  for k in "${!PAL[@]}"; do
+    v="${PAL[$k]}"
+    prog+="s|{{${k}\\|rgb}}|$(hex_to_rgb "$v")|g;"
+    prog+="s|{{${k}}}|${v}|g;"
+  done
+  prog+="s|{{THEME_NAME}}|${THEME_DISPLAY}|g;"
+  sed -e "$prog" "$src" > "$dest"
+}
+
+# --- load a palette file into the PAL associative array ---------------------
+load_palette() {
+  local slug="$1" file="$THEMES_DIR/$1.theme"
+  [ -f "$file" ] || { warn "no such theme: $slug"; echo; echo "Available:"; list_themes; exit 1; }
+  declare -gA PAL=()
+  # shellcheck disable=SC1090
+  ( set -a; . "$file"; )   # syntax-check
+  # source into current shell and copy the flat vars we care about
+  set -a; . "$file"; set +a
+  local keys=(bg bg_alt bg_dim surface overlay fg fg_dim fg_faint
+    accent accent2 accent3 red green yellow blue magenta cyan
+    br_black br_red br_green br_yellow br_blue br_magenta br_cyan br_white
+    on_accent)
+  local k
+  for k in "${keys[@]}"; do PAL[$k]="${!k:-000000}"; done
+  THEME_DISPLAY="${name:-$slug}"
+  THEME_MODE="${mode:-dark}"
+  GTK_THEME_NAME="${gtk_theme:-}"
+  ICON_THEME="${icon_theme:-Papirus-Dark}"
+  CURSOR_THEME="${cursor_theme:-Bibata-Modern-Amber}"
+  WALL_SHADER="${wallpaper_shader:-}"
+}
+
+# --- apply everything -------------------------------------------------------
+apply_theme() {
+  local slug="$1"
+  load_palette "$slug"
+  say "Switching to ${BOLD}${THEME_DISPLAY}${NC}"
+
+  # 1. render every templated config -> live ~/.config
+  render "$REPO/config/kitty/current-theme.conf.tmpl"     "$CFG/kitty/current-theme.conf"
+  render "$REPO/config/dunst/dunstrc.tmpl"                "$CFG/dunst/dunstrc"
+  render "$REPO/config/rofi/colors.rasi.tmpl"             "$CFG/rofi/colors.rasi"
+  render "$REPO/config/waybar/colors.css.tmpl"            "$CFG/waybar/colors.css"
+  render "$REPO/config/hypr/theme-colors.conf.tmpl"       "$CFG/hypr/theme-colors.conf"
+  render "$REPO/config/hypr/hyprlock.conf.tmpl"           "$CFG/hypr/hyprlock.conf"
+  render "$REPO/config/gtk-3.0/gtk.css.tmpl"              "$CFG/gtk-3.0/gtk.css"
+  render "$REPO/config/gtk-4.0/gtk.css.tmpl"              "$CFG/gtk-4.0/gtk.css"
+  render "$REPO/config/qt5ct/colors/theme.conf.tmpl"      "$CFG/qt5ct/colors/theme.conf"
+  render "$REPO/config/qt6ct/colors/theme.conf.tmpl"      "$CFG/qt6ct/colors/theme.conf"
+  render "$REPO/config/satty/config.toml.tmpl"            "$CFG/satty/config.toml"
+  render "$REPO/config/wlogout/style.css.tmpl"            "$CFG/wlogout/style.css"
+  render "$REPO/kde/color-schemes/theme.colors.tmpl"      "$HOME/.local/share/color-schemes/Phosphor.colors"
+  info "rendered config templates"
+
+  # point qt5ct/qt6ct at the freshly rendered color scheme
+  for qc in "$CFG/qt5ct/qt5ct.conf" "$CFG/qt6ct/qt6ct.conf"; do
+    [ -f "$qc" ] && sed -i -E 's|^(color_scheme_path=).*|\1'"$CFG"'/'"$(basename "$(dirname "$qc")")"'/colors/theme.conf|' "$qc" 2>/dev/null || true
+  done
+
+  # 2. GTK / icon / cursor / dark-light via gsettings
+  if command -v gsettings >/dev/null 2>&1; then
+    local S=org.gnome.desktop.interface
+    [ -n "$GTK_THEME_NAME" ] && gsettings set $S gtk-theme "$GTK_THEME_NAME" 2>/dev/null || true
+    gsettings set $S icon-theme   "$ICON_THEME"   2>/dev/null || true
+    gsettings set $S cursor-theme "$CURSOR_THEME" 2>/dev/null || true
+    if [ "$THEME_MODE" = "light" ]; then
+      gsettings set $S color-scheme 'prefer-light' 2>/dev/null || true
+    else
+      gsettings set $S color-scheme 'prefer-dark' 2>/dev/null || true
+    fi
+  fi
+  # also flip GTK settings.ini dark hint
+  for gs in "$CFG/gtk-3.0/settings.ini" "$CFG/gtk-4.0/settings.ini"; do
+    [ -f "$gs" ] || continue
+    if [ "$THEME_MODE" = "light" ]; then
+      sed -i 's/gtk-application-prefer-dark-theme=.*/gtk-application-prefer-dark-theme=0/' "$gs" 2>/dev/null || true
+    else
+      sed -i 's/gtk-application-prefer-dark-theme=.*/gtk-application-prefer-dark-theme=1/' "$gs" 2>/dev/null || true
+    fi
+  done
+
+  # 3. KDE colour scheme (for Dolphin/Kate under Plasma integration)
+  if command -v kwriteconfig6 >/dev/null 2>&1; then
+    kwriteconfig6 --file kdeglobals --group General --key ColorScheme "$THEME_DISPLAY" 2>/dev/null || true
+  elif command -v kwriteconfig5 >/dev/null 2>&1; then
+    kwriteconfig5 --file kdeglobals --group General --key ColorScheme "$THEME_DISPLAY" 2>/dev/null || true
+  fi
+
+  # 4. wallpaper shader (neowall)
+  if [ -n "$WALL_SHADER" ] && command -v neowall >/dev/null 2>&1; then
+    local shader="$CFG/neowall/shaders/$WALL_SHADER.glsl"
+    [ -f "$shader" ] || shader="$CFG/neowall/shaders/$WALL_SHADER"
+    if [ -e "$shader" ]; then
+      ( neowall load "$shader" >/dev/null 2>&1 || neowall shader "$shader" >/dev/null 2>&1 || \
+        neowall "$shader" >/dev/null 2>&1 ) &
+      info "wallpaper -> $WALL_SHADER"
+    fi
+  fi
+
+  # 5. reload live apps
+  reload_apps
+
+  # 6. persist active theme
+  mkdir -p "$(dirname "$STATE")"
+  echo "$slug" > "$STATE"
+
+  say "Done. Now running ${BOLD}${THEME_DISPLAY}${NC} 🎨"
+  info "kitty: reload with Ctrl+Shift+F5 (or new window). Qt6 apps: relaunch."
+}
+
+reload_apps() {
+  # kitty — live reload all instances via SIGUSR1
+  pkill -SIGUSR1 -x kitty 2>/dev/null || true
+  # hyprland (border/shadow colours) + hyprlock config
+  command -v hyprctl >/dev/null 2>&1 && hyprctl reload >/dev/null 2>&1 || true
+  # dunst
+  if command -v dunst >/dev/null 2>&1; then
+    pkill -x dunst 2>/dev/null || true
+    ( setsid dunst >/dev/null 2>&1 & ) || true
+  fi
+  # waybar
+  if command -v waybar >/dev/null 2>&1; then
+    pkill -x waybar 2>/dev/null || true
+    ( setsid waybar >/dev/null 2>&1 & ) || true
+  fi
+  # gtk apps: bump the theme to force a reread (xsettings)
+  command -v gsettings >/dev/null 2>&1 && \
+    gsettings set org.gnome.desktop.interface icon-theme "$ICON_THEME" 2>/dev/null || true
+  info "reloaded kitty · hyprland · dunst · waybar"
+}
+
+# --- interactive picker -----------------------------------------------------
+pick() {
+  local themes names slug
+  mapfile -t themes < <(list_themes)
+  # Build "Display Name" list mapped back to slugs
+  local menu="" cur; cur="$(current_theme)"
+  for slug in "${themes[@]}"; do
+    local disp; disp="$(pretty_name "$slug")"
+    [ "$slug" = "$cur" ] && disp="$disp  ●"
+    menu+="$disp\t$slug\n"
+  done
+  local chosen=""
+  if [ -n "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ] && command -v rofi >/dev/null 2>&1; then
+    chosen="$(printf '%b' "$menu" | cut -f1 | rofi -dmenu -i -p "theme" -theme-str 'window {width: 360px;} listview {lines: 8;}')" || return 0
+  elif command -v fzf >/dev/null 2>&1; then
+    chosen="$(printf '%b' "$menu" | cut -f1 | fzf --prompt='theme> ')" || return 0
+  else
+    echo "Available themes:"; local i=1
+    for slug in "${themes[@]}"; do echo "  $i) $(pretty_name "$slug")"; i=$((i+1)); done
+    read -rp "pick #: " n
+    chosen="$(pretty_name "${themes[$((n-1))]}")"
+  fi
+  [ -z "$chosen" ] && return 0
+  chosen="${chosen%%  ●}"   # strip active marker
+  # map display name back to slug
+  for slug in "${themes[@]}"; do
+    [ "$(pretty_name "$slug")" = "$chosen" ] && { apply_theme "$slug"; return; }
+  done
+  warn "unknown selection: $chosen"
+}
+
+# --- main -------------------------------------------------------------------
+case "${1:-}" in
+  ""|pick|menu)      pick ;;
+  list|ls)           list_themes ;;
+  current|active)    current_theme ;;
+  reload|re)         apply_theme "$(current_theme)" ;;
+  -h|--help|help)
+    sed -n '2,20p' "$SELF" | sed 's/^# \{0,1\}//' ;;
+  *)
+    if [ -f "$THEMES_DIR/$1.theme" ]; then apply_theme "$1"
+    else warn "no such theme: $1"; echo; echo "Available:"; list_themes; exit 1; fi ;;
+esac

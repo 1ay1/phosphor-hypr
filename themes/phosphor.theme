@@ -1,0 +1,54 @@
+# ── PHOSPHOR ──────────────────────────────────────────────────────────────
+# Green-on-black terminal core. The original.
+# This is a THEME PALETTE: a flat list of KEY=value pairs consumed by the
+# `theme` switcher, which substitutes {{KEY}} placeholders in config/**/*.tmpl.
+# Every colour is a 6-digit hex WITHOUT the leading '#'. Keep them all defined.
+
+name="Phosphor"
+mode="dark"                 # dark | light  (drives gtk/qt prefer-dark)
+
+# Core surfaces
+bg="050805"                 # window / terminal background (darkest)
+bg_alt="0a120a"             # panels, inputbars, inactive tabs
+bg_dim="080d09"             # secondary background
+surface="103c22"            # borders, inactive frames, dividers
+overlay="0d2818"            # hover fills, inactive gradient
+
+# Text
+fg="b7ffcc"                 # primary foreground
+fg_dim="4a7a5a"             # muted / secondary text
+fg_faint="14b83a"           # faintest labels
+
+# Accents
+accent="00ff41"             # primary accent (hot green)
+accent2="00e5ff"            # secondary accent (cyan) — links, hover
+accent3="b3ff66"            # tertiary accent (lime)
+
+# Semantic
+red="ff2b4a"                # error / urgent / close
+green="00ff41"              # success
+yellow="ffb000"             # warning / bell
+blue="00c9a7"              # info (teal-blue in this theme)
+magenta="b3ff66"            # magenta slot (lime here)
+cyan="00e5ff"               # cyan
+
+# Bright ANSI variants (terminal color8-15)
+br_black="1c3a26"
+br_red="ff5c72"
+br_green="7dffa0"
+br_yellow="ffd24d"
+br_blue="4dffd9"
+br_magenta="d0ff99"
+br_cyan="66efff"
+br_white="e8ffef"
+
+# On-accent text (text drawn ON TOP of an accent fill — usually the bg)
+on_accent="050805"
+
+# GTK / Qt / KDE integration
+gtk_theme="catppuccin-mocha-green-standard+default"
+icon_theme="Papirus-Dark"
+cursor_theme="Bibata-Modern-Amber"
+
+# Wallpaper: neowall shader basename (in config/neowall/shaders/) to load
+wallpaper_shader="phosphor_core"
