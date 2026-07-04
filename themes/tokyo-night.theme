@@ -40,3 +40,40 @@ icon_theme="Papirus-Dark"
 cursor_theme="Bibata-Modern-Amber"
 
 wallpaper_shader="starfield_warp"
+
+# ── STRUCTURE: soft neon — big rounding, heavy blur, floating bottom bar, bouncy
+radius="16"
+border_width="2"
+gap_in="8"
+gap_out="20"
+layout="dwindle"
+
+opacity_active="0.97"
+opacity_inactive="0.88"
+blur_size="10"
+blur_passes="4"
+blur_vibrancy="0.35"
+glow="0.45"
+
+anim_speed="7"
+anim_bezier="0.1, 1.1, 0.1, 1.1"
+anim_style="popin 80%"
+
+bar_position="top"
+bar_height="38"
+bar_margin="12"
+bar_spacing="10"
+bar_radius="14"
+
+font_ui="JetBrainsMono Nerd Font"
+font_mono="JetBrainsMono Nerd Font"
+font_size_ui="13"
+font_size_term="11.0"
+font_weight="normal"
+
+term_opacity="0.92"
+term_padding="14"
+
+cursor_size="24"
+qt_style="Fusion"
+kvantum_theme="Sweet"

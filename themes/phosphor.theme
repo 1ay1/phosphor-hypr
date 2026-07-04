@@ -52,3 +52,43 @@ cursor_theme="Bibata-Modern-Amber"
 
 # Wallpaper: neowall shader basename (in config/neowall/shaders/) to load
 wallpaper_shader="phosphor_core"
+
+# ── STRUCTURE / PERSONALITY ────────────────────────────────────────────────
+# Shapes, spacing, fonts, blur, animation feel. This is what makes each theme
+# look RADICALLY different beyond colour. Phosphor = sharp CRT terminal:
+# zero rounding, thin borders, tight gaps, snappy animations, top bar.
+radius="0"                  # corner rounding everywhere (px)
+border_width="2"            # window/widget frame thickness (px)
+gap_in="6"                  # inner window gaps
+gap_out="14"                # outer window gaps
+layout="dwindle"            # dwindle | master
+
+opacity_active="1.0"
+opacity_inactive="0.94"
+blur_size="8"
+blur_passes="3"
+blur_vibrancy="0.25"
+glow="0.30"                 # shadow/text-shadow intensity (0=flat .. 1=heavy neon)
+
+anim_speed="5"             # animation duration (lower = snappier)
+anim_bezier="0.05, 0.9, 0.1, 1.05"   # the feel curve
+anim_style="slide"          # slide | popin | fade
+
+bar_position="top"          # top | bottom
+bar_height="36"
+bar_margin="8"              # margin around the bar (px)
+bar_spacing="6"
+bar_radius="0"              # waybar module corner rounding
+
+font_ui="JetBrainsMono Nerd Font"    # all UI surfaces
+font_mono="FiraCode Nerd Font"       # terminal
+font_size_ui="13"
+font_size_term="11.0"
+font_weight="bold"          # normal | bold
+
+term_opacity="1.0"
+term_padding="0"
+
+cursor_size="24"
+qt_style="Fusion"
+kvantum_theme="Sweet"

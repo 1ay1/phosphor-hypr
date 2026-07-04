@@ -68,11 +68,15 @@ render() {
   local src="$1" dest="$2"
   [ -f "$src" ] || { warn "missing template: $src"; return 0; }
   mkdir -p "$(dirname "$dest")"
-  # Build a sed program: {{KEY}} -> value, {{KEY|rgb}} -> R,G,B, {{THEME_NAME}} -> name
+  # Build a sed program: {{KEY}} -> value, {{KEY|rgb}} -> R,G,B (hex keys only),
+  # {{THEME_NAME}} -> display name.
   local prog="" k v
   for k in "${!PAL[@]}"; do
     v="${PAL[$k]}"
-    prog+="s|{{${k}\\|rgb}}|$(hex_to_rgb "$v")|g;"
+    # only colour keys (exactly 6 hex digits) get an {{KEY|rgb}} decimal form
+    if [[ "$v" =~ ^[0-9a-fA-F]{6}$ ]]; then
+      prog+="s|{{${k}\\|rgb}}|$(hex_to_rgb "$v")|g;"
+    fi
     prog+="s|{{${k}}}|${v}|g;"
   done
   prog+="s|{{THEME_NAME}}|${THEME_DISPLAY}|g;"
@@ -91,9 +95,44 @@ load_palette() {
   local keys=(bg bg_alt bg_dim surface overlay fg fg_dim fg_faint
     accent accent2 accent3 red green yellow blue magenta cyan
     br_black br_red br_green br_yellow br_blue br_magenta br_cyan br_white
-    on_accent)
+    on_accent
+    radius border_width gap_in gap_out layout
+    opacity_active opacity_inactive blur_size blur_passes blur_vibrancy glow
+    anim_speed anim_bezier anim_style
+    bar_position bar_height bar_margin bar_spacing bar_radius
+    font_ui font_mono font_size_ui font_size_term font_weight
+    term_opacity term_padding cursor_size qt_style kvantum_theme)
   local k
-  for k in "${keys[@]}"; do PAL[$k]="${!k:-000000}"; done
+  for k in "${keys[@]}"; do PAL[$k]="${!k}"; done
+
+  # sensible fallbacks for older palette files that lack structure keys
+  : "${PAL[radius]:=8}";           : "${PAL[border_width]:=2}"
+  : "${PAL[gap_in]:=6}";           : "${PAL[gap_out]:=14}"
+  : "${PAL[layout]:=dwindle}"
+  : "${PAL[opacity_active]:=1.0}"; : "${PAL[opacity_inactive]:=0.94}"
+  : "${PAL[blur_size]:=8}";        : "${PAL[blur_passes]:=3}"
+  : "${PAL[blur_vibrancy]:=0.25}"; : "${PAL[glow]:=0.25}"
+  : "${PAL[anim_speed]:=6}";       : "${PAL[anim_bezier]:=0.05, 0.9, 0.1, 1.05}"
+  : "${PAL[anim_style]:=slide}"
+  : "${PAL[bar_position]:=top}";   : "${PAL[bar_height]:=36}"
+  : "${PAL[bar_margin]:=8}";       : "${PAL[bar_spacing]:=6}"; : "${PAL[bar_radius]:=0}"
+  : "${PAL[font_ui]:=JetBrainsMono Nerd Font}"
+  : "${PAL[font_mono]:=JetBrainsMono Nerd Font}"
+  : "${PAL[font_size_ui]:=13}";    : "${PAL[font_size_term]:=11.0}"
+  : "${PAL[font_weight]:=bold}"
+  : "${PAL[term_opacity]:=1.0}";   : "${PAL[term_padding]:=0}"
+  : "${PAL[cursor_size]:=24}";     : "${PAL[qt_style]:=Fusion}"
+  : "${PAL[kvantum_theme]:=Sweet}"
+
+  # derived: glow (0..1) -> 2-digit hex alpha for shadow, and a px radius
+  local g="${PAL[glow]}"
+  PAL[glow_alpha]="$(awk -v g="$g" 'BEGIN{printf "%02x", int(g*255)}')"
+  PAL[glow_px]="$(awk -v g="$g" 'BEGIN{printf "%d", int(g*24)+2}')"
+  # window animations only accept slide/popin — map fade to a safe default
+  case "${PAL[anim_style]}" in
+    fade|"") PAL[win_style]="slide" ;;
+    *)       PAL[win_style]="${PAL[anim_style]}" ;;
+  esac
   THEME_DISPLAY="${name:-$slug}"
   THEME_MODE="${mode:-dark}"
   GTK_THEME_NAME="${gtk_theme:-}"
@@ -114,8 +153,11 @@ apply_theme() {
   render "$REPO/config/rofi/colors.rasi.tmpl"             "$CFG/rofi/colors.rasi"
   render "$REPO/config/rofi/theme-picker.rasi.tmpl"       "$CFG/rofi/theme-picker.rasi"
   render "$REPO/config/waybar/colors.css.tmpl"            "$CFG/waybar/colors.css"
+  render "$REPO/config/waybar/style.css.tmpl"             "$CFG/waybar/style.css"
+  render "$REPO/config/waybar/config.jsonc.tmpl"          "$CFG/waybar/config.jsonc"
   render "$REPO/config/hypr/theme-colors.conf.tmpl"       "$CFG/hypr/theme-colors.conf"
   render "$REPO/config/hypr/hyprlock.conf.tmpl"           "$CFG/hypr/hyprlock.conf"
+  render "$REPO/config/kitty/theme-structure.conf.tmpl"   "$CFG/kitty/theme-structure.conf"
   render "$REPO/config/gtk-3.0/gtk.css.tmpl"              "$CFG/gtk-3.0/gtk.css"
   render "$REPO/config/gtk-4.0/gtk.css.tmpl"              "$CFG/gtk-4.0/gtk.css"
   render "$REPO/config/qt5ct/colors/theme.conf.tmpl"      "$CFG/qt5ct/colors/theme.conf"
@@ -125,10 +167,31 @@ apply_theme() {
   render "$REPO/kde/color-schemes/theme.colors.tmpl"      "$HOME/.local/share/color-schemes/Phosphor.colors"
   info "rendered config templates"
 
-  # point qt5ct/qt6ct at the freshly rendered color scheme
+  # point qt5ct/qt6ct at the freshly rendered color scheme + set widget style/font
   for qc in "$CFG/qt5ct/qt5ct.conf" "$CFG/qt6ct/qt6ct.conf"; do
-    [ -f "$qc" ] && sed -i -E 's|^(color_scheme_path=).*|\1'"$CFG"'/'"$(basename "$(dirname "$qc")")"'/colors/theme.conf|' "$qc" 2>/dev/null || true
+    [ -f "$qc" ] || continue
+    sed -i -E 's|^(color_scheme_path=).*|\1'"$CFG"'/'"$(basename "$(dirname "$qc")")"'/colors/theme.conf|' "$qc" 2>/dev/null || true
+    sed -i -E "s|^(style=).*|\\1${PAL[qt_style]}|" "$qc" 2>/dev/null || true
   done
+
+  # rewrite GTK settings.ini: theme engine, font, cursor size (icon/cursor names too)
+  for gs in "$CFG/gtk-3.0/settings.ini" "$CFG/gtk-4.0/settings.ini"; do
+    [ -f "$gs" ] || continue
+    [ -n "$GTK_THEME_NAME" ] && sed -i -E "s|^(gtk-theme-name=).*|\\1${GTK_THEME_NAME}|" "$gs" 2>/dev/null || true
+    sed -i -E "s|^(gtk-icon-theme-name=).*|\\1${ICON_THEME}|" "$gs" 2>/dev/null || true
+    sed -i -E "s|^(gtk-cursor-theme-name=).*|\\1${CURSOR_THEME}|" "$gs" 2>/dev/null || true
+    sed -i -E "s|^(gtk-cursor-theme-size=).*|\\1${PAL[cursor_size]}|" "$gs" 2>/dev/null || true
+    sed -i -E "s|^(gtk-font-name=).*|\\1${PAL[font_ui]} ${PAL[font_size_ui]%.*}|" "$gs" 2>/dev/null || true
+  done
+
+  # Kvantum theme
+  if [ -f "$CFG/Kvantum/kvantum.kvconfig" ]; then
+    sed -i -E "s|^(theme=).*|\\1${PAL[kvantum_theme]}|" "$CFG/Kvantum/kvantum.kvconfig" 2>/dev/null || true
+  fi
+
+  # cursor size for Hyprland/XCURSOR at runtime
+  command -v hyprctl >/dev/null 2>&1 && \
+    hyprctl setcursor "$CURSOR_THEME" "${PAL[cursor_size]}" >/dev/null 2>&1 || true
 
   # 2. GTK / icon / cursor / dark-light via gsettings
   if command -v gsettings >/dev/null 2>&1; then

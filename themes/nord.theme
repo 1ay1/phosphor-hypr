@@ -40,3 +40,40 @@ icon_theme="Papirus-Dark"
 cursor_theme="Bibata-Modern-Amber"
 
 wallpaper_shader="moon_ocean"
+
+# ── STRUCTURE: minimal calm — subtle rounding, thin, huge gaps, slow gentle anims
+radius="6"
+border_width="1"
+gap_in="12"
+gap_out="28"
+layout="dwindle"
+
+opacity_active="1.0"
+opacity_inactive="0.95"
+blur_size="6"
+blur_passes="2"
+blur_vibrancy="0.2"
+glow="0.08"
+
+anim_speed="9"
+anim_bezier="0.36, 0, 0.66, 1"
+anim_style="fade"
+
+bar_position="top"
+bar_height="34"
+bar_margin="14"
+bar_spacing="8"
+bar_radius="10"
+
+font_ui="JetBrainsMono Nerd Font"
+font_mono="JetBrainsMono Nerd Font"
+font_size_ui="13"
+font_size_term="11.0"
+font_weight="normal"
+
+term_opacity="0.96"
+term_padding="16"
+
+cursor_size="24"
+qt_style="Fusion"
+kvantum_theme="Sweet"

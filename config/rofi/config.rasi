@@ -30,11 +30,12 @@ configuration {
 window {
     transparency: "real";
     background-color: @bg;
-    border: 1px;
+    border: @t-border;
     border-color: @accent;
-    border-radius: 0px;
+    border-radius: @t-radius;
     width: 560px;
     padding: 2px;
+    font: @t-font;
 }
 
 mainbox {
@@ -44,9 +45,9 @@ mainbox {
 
 inputbar {
     background-color: @bg-alt;
-    border: 1px;
+    border: @t-border;
     border-color: @accent;
-    border-radius: 0px;
+    border-radius: @t-radius;
     padding: 10px 14px;
     spacing: 8px;
     children: [ prompt, entry ];
@@ -75,7 +76,7 @@ listview {
 
 element {
     padding: 8px 12px;
-    border-radius: 0px;
+    border-radius: @t-radius;
     background-color: transparent;
     text-color: @fg;
 }

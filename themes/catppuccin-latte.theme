@@ -40,3 +40,40 @@ icon_theme="Papirus-Light"
 cursor_theme="Bibata-Modern-Amber"
 
 wallpaper_shader="circadian_sky"
+
+# ── STRUCTURE: clean light — crisp rounded, low glow (light bg), airy, opaque
+radius="12"
+border_width="2"
+gap_in="8"
+gap_out="18"
+layout="dwindle"
+
+opacity_active="1.0"
+opacity_inactive="0.97"
+blur_size="6"
+blur_passes="2"
+blur_vibrancy="0.15"
+glow="0.05"
+
+anim_speed="6"
+anim_bezier="0.05, 0.9, 0.1, 1.05"
+anim_style="popin 85%"
+
+bar_position="top"
+bar_height="36"
+bar_margin="10"
+bar_spacing="8"
+bar_radius="12"
+
+font_ui="JetBrainsMono Nerd Font"
+font_mono="JetBrainsMono Nerd Font"
+font_size_ui="13"
+font_size_term="11.0"
+font_weight="normal"
+
+term_opacity="1.0"
+term_padding="12"
+
+cursor_size="24"
+qt_style="Fusion"
+kvantum_theme="Sweet"

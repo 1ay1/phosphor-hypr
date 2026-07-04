@@ -51,12 +51,24 @@ theme current         # print the active theme
 theme reload          # re-apply (after editing a palette)
 ```
 
-Switching repaints **everything at once** — Hyprland borders/shadows, hyprlock,
-waybar, rofi, dunst, kitty (live), GTK 3/4, Qt 5/6, the KDE colour scheme,
-satty, wlogout, and the wallpaper shader — then reloads the running apps.
+Switching repaints **and reshapes** everything at once — not just colour but the
+whole personality: Hyprland gaps/borders/rounding/blur/animation-feel/layout,
+hyprlock, waybar shape & position, rofi geometry, dunst, kitty (font, opacity,
+padding), GTK 3/4 (+ theme engine & cursor size), Qt 5/6 (+ widget style),
+Kvantum, the KDE colour scheme, satty, wlogout, and the wallpaper shader — then
+reloads the running apps.
 
-**Built-in themes:** `phosphor` · `tokyo-night` · `gruvbox` ·
-`catppuccin-mocha` · `catppuccin-latte` (light) · `nord` · `rose-pine`
+**Built-in themes** (each a distinct personality, not just a recolour):
+
+| Theme | Personality |
+|-------|-------------|
+| `phosphor` | sharp CRT — 0 rounding, thin borders, tight gaps, snappy |
+| `tokyo-night` | soft neon — big rounding, heavy blur, bouncy pop-in |
+| `gruvbox` | cozy retro — chunky 4px borders, master layout, big gaps |
+| `catppuccin-mocha` | modern rounded — comfy medium radius, moderate |
+| `catppuccin-latte` | clean **light** — crisp, low-glow, opaque |
+| `nord` | minimal calm — thin, huge gaps, slow gentle fades |
+| `rose-pine` | elegant — large pill rounding, graceful pop-in |
 
 ### Add your own
 
@@ -99,21 +111,29 @@ Fonts: **JetBrainsMono Nerd Font** · Cursor: **Bibata-Modern-Amber** · Icons: 
 
 ---
 
-## 🎨 The palette schema
+## 🎨 The theme schema
 
-Each `themes/*.theme` defines the same ~26 keys (hex, no `#`). Core roles:
+Each `themes/*.theme` is a flat file of `key="value"` pairs. **Colours** (~26
+hex keys, no `#`) plus **structure** (shape, spacing, fonts, blur, animation
+feel). Core structural keys:
 
-| Key | Role |
-|-----|------|
-| `bg` / `bg_alt` / `bg_dim` | surfaces (darkest → panels) |
-| `surface` / `overlay` | borders, hover fills |
-| `fg` / `fg_dim` / `fg_faint` | text (primary → faint) |
-| `accent` / `accent2` / `accent3` | primary / secondary / tertiary accents |
-| `red green yellow blue magenta cyan` | semantic + ANSI |
-| `br_*` | bright ANSI variants (terminal color8–15) |
-| `on_accent` | text drawn on top of an accent fill |
-| `mode` | `dark` or `light` (drives GTK/Qt dark hint) |
-| `wallpaper_shader` | neowall shader to load for this theme |
+| Key | Controls |
+|-----|----------|
+| `radius` | corner rounding everywhere (hypr, waybar, rofi, dunst, satty…) |
+| `border_width` | frame thickness (windows, widgets, inputs) |
+| `gap_in` / `gap_out` | inner / outer window gaps |
+| `layout` | `dwindle` or `master` |
+| `opacity_active`/`_inactive` | window opacity |
+| `blur_size`/`_passes`/`blur_vibrancy` | Hyprland + hyprlock blur |
+| `glow` | shadow / text-shadow intensity (0 flat … 1 heavy neon) |
+| `anim_speed`/`anim_bezier`/`anim_style` | animation duration, curve, feel |
+| `bar_position`/`bar_height`/`bar_margin`/`bar_radius` | waybar shape |
+| `font_ui` / `font_mono` | UI font / terminal font (swapped globally) |
+| `font_size_ui`/`font_size_term`/`font_weight` | sizes & weight |
+| `term_opacity`/`term_padding` | kitty |
+| `cursor_size` | cursor scale |
+| `gtk_theme`/`qt_style`/`kvantum_theme` | widget **engines** per theme |
+| `icon_theme`/`cursor_theme`/`mode`/`wallpaper_shader` | icons, cursor, dark/light, wallpaper |
 
 ---
 

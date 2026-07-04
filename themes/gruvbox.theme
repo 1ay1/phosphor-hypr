@@ -40,3 +40,40 @@ icon_theme="Papirus-Dark"
 cursor_theme="Bibata-Modern-Amber"
 
 wallpaper_shader="sunrise"
+
+# ── STRUCTURE: cozy retro — chunky borders, medium rounding, big gaps, calm
+radius="8"
+border_width="4"
+gap_in="10"
+gap_out="24"
+layout="master"
+
+opacity_active="1.0"
+opacity_inactive="0.96"
+blur_size="4"
+blur_passes="2"
+blur_vibrancy="0.15"
+glow="0.15"
+
+anim_speed="6"
+anim_bezier="0.25, 1, 0.5, 1"
+anim_style="slide"
+
+bar_position="top"
+bar_height="40"
+bar_margin="10"
+bar_spacing="8"
+bar_radius="8"
+
+font_ui="JetBrainsMono Nerd Font"
+font_mono="JetBrainsMono Nerd Font"
+font_size_ui="14"
+font_size_term="12.0"
+font_weight="bold"
+
+term_opacity="1.0"
+term_padding="10"
+
+cursor_size="28"
+qt_style="Fusion"
+kvantum_theme="Sweet"
