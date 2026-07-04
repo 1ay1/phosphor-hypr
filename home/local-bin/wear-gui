@@ -1,0 +1,388 @@
+#!/usr/bin/env python3
+"""wear-gui — native GTK4/Adwaita appearance tweaker for the Phosphor desktop.
+
+A friendly front-end over the `wear` CLI. It reads the property schema and the
+effective palette from `wear`, shows grouped sliders / colour buttons / dropdowns
+/ font pickers, and on every change runs `wear set <key> <value>` — which
+re-renders and reloads the whole desktop live.
+
+No theming logic lives here; `wear` remains the single source of truth.
+"""
+from __future__ import annotations
+import os
+import shutil
+import subprocess
+import sys
+
+import gi
+gi.require_version("Gtk", "4.0")
+gi.require_version("Adw", "1")
+from gi.repository import Gtk, Adw, Gio, Gdk, GLib, Pango  # noqa: E402
+
+WEAR = os.environ.get("WEAR_BIN") or shutil.which("wear") \
+    or os.path.expanduser("~/.local/bin/wear")
+
+CATEGORY_ICONS = {
+    "Colours": "applications-graphics-symbolic",
+    "Shape": "view-grid-symbolic",
+    "Feel": "weather-clear-symbolic",
+    "Bar": "view-dual-symbolic",
+    "Type": "font-x-generic-symbolic",
+}
+
+
+def wear(*args: str, capture: bool = True) -> str:
+    """Run the wear CLI; return stdout (stripped) when capture=True."""
+    try:
+        r = subprocess.run([WEAR, *args], capture_output=capture, text=True)
+        return (r.stdout or "").strip() if capture else ""
+    except Exception as e:  # noqa: BLE001
+        sys.stderr.write(f"wear {' '.join(args)} failed: {e}\n")
+        return ""
+
+
+def load_schema() -> list[tuple[str, list[dict]]]:
+    """Return [(category, [prop, ...]), ...] parsed from `wear schema`."""
+    cats: list[tuple[str, list[dict]]] = []
+    cur: list[dict] | None = None
+    for line in wear("schema").splitlines():
+        line = line.rstrip("\n")
+        if line.startswith("## "):
+            cur = []
+            cats.append((line[3:].strip(), cur))
+            continue
+        if not line or cur is None:
+            continue
+        parts = line.split("|")
+        if len(parts) < 3:
+            continue
+        key, label, typ = parts[0], parts[1], parts[2]
+        spec = parts[3] if len(parts) > 3 else ""
+        cur.append({"key": key, "label": label, "type": typ, "spec": spec})
+    return cats
+
+
+def load_values() -> dict[str, str]:
+    vals: dict[str, str] = {}
+    for line in wear("values").splitlines():
+        if "=" in line:
+            k, v = line.split("=", 1)
+            vals[k.strip()] = v.strip()
+    return vals
+
+
+def hex_to_rgba(h: str) -> Gdk.RGBA:
+    rgba = Gdk.RGBA()
+    rgba.parse("#" + h.lstrip("#"))
+    return rgba
+
+
+def rgba_to_hex(rgba: Gdk.RGBA) -> str:
+    return "%02x%02x%02x" % (
+        round(rgba.red * 255), round(rgba.green * 255), round(rgba.blue * 255)
+    )
+
+
+class WearWindow(Adw.ApplicationWindow):
+    def __init__(self, app: "WearApp"):
+        super().__init__(application=app, title="Appearance")
+        self.set_default_size(920, 680)
+        self._apply_pending = False
+        self._debounce_id = 0
+        self._pending_args: tuple[str, str] | None = None
+
+        self.schema = load_schema()
+        self.values = load_values()
+
+        # ---- layout: split view, sidebar + content -------------------------
+        split = Adw.NavigationSplitView()
+        self.set_content(split)
+
+        # sidebar
+        sb_page = Adw.NavigationPage(title="wear")
+        sb_tb = Adw.ToolbarView()
+        sb_header = Adw.HeaderBar()
+        sb_header.set_title_widget(Adw.WindowTitle(title="wear", subtitle="appearance"))
+        sb_tb.add_top_bar(sb_header)
+        self.sidebar = Gtk.ListBox()
+        self.sidebar.set_css_classes(["navigation-sidebar"])
+        self.sidebar.connect("row-selected", self._on_category_selected)
+        sb_scroll = Gtk.ScrolledWindow(child=self.sidebar, vexpand=True)
+        sb_tb.set_content(sb_scroll)
+        sb_page.set_child(sb_tb)
+        split.set_sidebar(sb_page)
+
+        # content
+        self.content_page = Adw.NavigationPage(title="Colours")
+        content_tb = Adw.ToolbarView()
+        header = Adw.HeaderBar()
+        content_tb.add_top_bar(header)
+
+        # header buttons: base theme, random, save, reset
+        theme_btn = Gtk.Button(icon_name="view-list-symbolic", tooltip_text="Switch base theme")
+        theme_btn.connect("clicked", self._on_pick_theme)
+        header.pack_start(theme_btn)
+
+        rnd_btn = Gtk.Button(icon_name="media-playlist-shuffle-symbolic",
+                             tooltip_text="Randomise accents")
+        rnd_btn.connect("clicked", lambda *_: self._run_and_refresh("random-accents"))
+        header.pack_start(rnd_btn)
+
+        menu = Gio.Menu()
+        menu.append("Save as new theme…", "win.save")
+        menu.append("Reset all tweaks", "win.reset")
+        menu_btn = Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu)
+        header.pack_end(menu_btn)
+        self._install_actions()
+
+        self.title_widget = Adw.WindowTitle(title="Colours", subtitle=self._subtitle())
+        header.set_title_widget(self.title_widget)
+
+        self.stack = Gtk.Stack()
+        self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        content_tb.set_content(self.stack)
+        self.content_page.set_child(content_tb)
+        split.set_content(self.content_page)
+
+        self._build_pages()
+
+    # -- helpers -------------------------------------------------------------
+    def _subtitle(self) -> str:
+        base = wear("current") or "?"
+        n = 0
+        tw = wear("tweaks")
+        if tw and not tw.startswith("("):
+            n = len([l for l in tw.splitlines() if l.strip()])
+        return f"{base} · {n} tweak{'s' if n != 1 else ''}"
+
+    def _refresh_subtitle(self):
+        self.title_widget.set_subtitle(self._subtitle())
+
+    def _set(self, key: str, value: str):
+        """Debounced live apply so dragging a slider doesn't spam reloads."""
+        self._pending_args = (key, value)
+        if self._debounce_id:
+            GLib.source_remove(self._debounce_id)
+        self._debounce_id = GLib.timeout_add(140, self._flush_set)
+
+    def _flush_set(self) -> bool:
+        self._debounce_id = 0
+        if self._pending_args:
+            k, v = self._pending_args
+            self._pending_args = None
+            subprocess.Popen([WEAR, "set", k, v],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            GLib.timeout_add(200, self._refresh_subtitle_cb)
+        return False
+
+    def _refresh_subtitle_cb(self) -> bool:
+        self._refresh_subtitle()
+        return False
+
+    def _run_and_refresh(self, *args: str):
+        wear(*args)
+        self.values = load_values()
+        self._build_pages()
+        self._refresh_subtitle()
+
+    # -- category navigation -------------------------------------------------
+    def _on_category_selected(self, _box, row):
+        if row is None:
+            return
+        name = row.get_child().get_label() if isinstance(row.get_child(), Gtk.Label) else row._cat
+        self.stack.set_visible_child_name(name)
+        self.title_widget.set_title(name)
+        self.content_page.set_title(name)
+
+    # -- build all pages -----------------------------------------------------
+    def _build_pages(self):
+        # clear old
+        child = self.sidebar.get_first_child()
+        while child:
+            nxt = child.get_next_sibling()
+            self.sidebar.remove(child)
+            child = nxt
+        old = self.stack.get_first_child()
+        while old:
+            nxt = old.get_next_sibling()
+            self.stack.remove(old)
+            old = nxt
+
+        first_row = None
+        for cat, props in self.schema:
+            # sidebar row
+            row = Gtk.ListBoxRow()
+            row._cat = cat
+            box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12,
+                          margin_top=10, margin_bottom=10, margin_start=8, margin_end=8)
+            icon = Gtk.Image.new_from_icon_name(
+                CATEGORY_ICONS.get(cat, "preferences-system-symbolic"))
+            box.append(icon)
+            box.append(Gtk.Label(label=cat, xalign=0))
+            row.set_child(box)
+            self.sidebar.append(row)
+            if first_row is None:
+                first_row = row
+
+            # content page
+            page = Adw.PreferencesPage()
+            grp = Adw.PreferencesGroup(title=cat)
+            page.add(grp)
+            for p in props:
+                grp.add(self._build_row(p))
+            scroller = Gtk.ScrolledWindow(child=page, vexpand=True)
+            self.stack.add_named(scroller, cat)
+
+        if first_row:
+            self.sidebar.select_row(first_row)
+
+    # -- one preference row per property ------------------------------------
+    def _build_row(self, p: dict) -> Gtk.Widget:
+        key, label, typ, spec = p["key"], p["label"], p["type"], p["spec"]
+        val = self.values.get(key, "")
+
+        if typ == "color":
+            row = Adw.ActionRow(title=label, subtitle=("#" + val) if val else spec)
+            btn = Gtk.ColorButton(valign=Gtk.Align.CENTER)
+            btn.set_use_alpha(False)
+            if val:
+                btn.set_rgba(hex_to_rgba(val))
+            btn.connect("color-set", self._on_color, key, row)
+            row.add_suffix(btn)
+            row.set_activatable_widget(btn)
+            return row
+
+        if typ.startswith("int:") or typ.startswith("float:"):
+            _, mn, mx, st = typ.split(":")
+            is_float = typ.startswith("float:")
+            row = Adw.ActionRow(title=label, subtitle=spec)
+            adj = Gtk.Adjustment(lower=float(mn), upper=float(mx),
+                                 step_increment=float(st), page_increment=float(st))
+            try:
+                adj.set_value(float(val))
+            except (TypeError, ValueError):
+                adj.set_value(float(mn))
+            scale = Gtk.Scale(adjustment=adj, hexpand=True, draw_value=True,
+                              digits=(2 if is_float else 0), valign=Gtk.Align.CENTER)
+            scale.set_size_request(260, -1)
+            scale.set_value_pos(Gtk.PositionType.RIGHT)
+            scale.connect("value-changed", self._on_scale, key, is_float)
+            row.add_suffix(scale)
+            return row
+
+        if typ == "choice":
+            row = Adw.ComboRow(title=label, subtitle=spec)
+            opts = [o for o in spec.split(",") if o]
+            model = Gtk.StringList.new(opts)
+            row.set_model(model)
+            if val in opts:
+                row.set_selected(opts.index(val))
+            row.connect("notify::selected", self._on_choice, key, opts)
+            return row
+
+        if typ == "font":
+            row = Adw.ActionRow(title=label, subtitle=val or spec)
+            btn = Gtk.FontButton(valign=Gtk.Align.CENTER)
+            btn.set_use_size(False)
+            if val:
+                btn.set_font(val + " 12")
+            btn.connect("font-set", self._on_font, key, row)
+            row.add_suffix(btn)
+            row.set_activatable_widget(btn)
+            return row
+
+        return Adw.ActionRow(title=label, subtitle=val)
+
+    # -- widget callbacks ----------------------------------------------------
+    def _on_color(self, btn, key, row):
+        h = rgba_to_hex(btn.get_rgba())
+        row.set_subtitle("#" + h)
+        self._set(key, h)
+
+    def _on_scale(self, scale, key, is_float):
+        v = scale.get_value()
+        self._set(key, ("%.2f" % v) if is_float else str(int(round(v))))
+
+    def _on_choice(self, row, _pspec, key, opts):
+        idx = row.get_selected()
+        if 0 <= idx < len(opts):
+            self._set(key, opts[idx])
+
+    def _on_font(self, btn, key, row):
+        desc = btn.get_font_desc()
+        fam = desc.get_family() if desc else btn.get_font()
+        if fam:
+            row.set_subtitle(fam)
+            self._set(key, fam)
+
+    # -- header actions ------------------------------------------------------
+    def _install_actions(self):
+        save = Gio.SimpleAction.new("save", None)
+        save.connect("activate", self._on_save)
+        self.add_action(save)
+        reset = Gio.SimpleAction.new("reset", None)
+        reset.connect("activate", self._on_reset)
+        self.add_action(reset)
+
+    def _on_reset(self, *_):
+        dlg = Adw.MessageDialog(transient_for=self, heading="Reset all tweaks?",
+                                body="Return to the pure base theme. This can't be undone.")
+        dlg.add_response("cancel", "Cancel")
+        dlg.add_response("reset", "Reset")
+        dlg.set_response_appearance("reset", Adw.ResponseAppearance.DESTRUCTIVE)
+        dlg.connect("response", lambda d, r: r == "reset" and self._run_and_refresh("reset"))
+        dlg.present()
+
+    def _on_save(self, *_):
+        dlg = Adw.MessageDialog(transient_for=self, heading="Save as new theme",
+                                body="Bake the current look into a reusable theme.")
+        entry = Gtk.Entry(placeholder_text="my-theme")
+        dlg.set_extra_child(entry)
+        dlg.add_response("cancel", "Cancel")
+        dlg.add_response("save", "Save")
+        dlg.set_response_appearance("save", Adw.ResponseAppearance.SUGGESTED)
+        dlg.set_default_response("save")
+
+        def _resp(d, r):
+            name = entry.get_text().strip()
+            if r == "save" and name:
+                self._run_and_refresh("save", name)
+        dlg.connect("response", _resp)
+        dlg.present()
+
+    def _on_pick_theme(self, *_):
+        themes = wear("list").split()
+        cur = wear("current")
+        dlg = Adw.MessageDialog(transient_for=self, heading="Base theme",
+                                body="Switching clears live tweaks.")
+        listbox = Gtk.ListBox(css_classes=["boxed-list"])
+        for t in themes:
+            r = Adw.ActionRow(title=t)
+            if t == cur:
+                r.add_suffix(Gtk.Image.new_from_icon_name("emblem-ok-symbolic"))
+            r._t = t
+            listbox.append(r)
+        listbox.connect("row-activated",
+                        lambda _b, row: (self._run_and_refresh(row._t), dlg.close()))
+        dlg.set_extra_child(listbox)
+        dlg.add_response("close", "Close")
+        dlg.present()
+
+
+class WearApp(Adw.Application):
+    def __init__(self):
+        super().__init__(application_id="dev.phosphor.wear",
+                         flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
+
+    def do_activate(self):
+        win = self.props.active_window or WearWindow(self)
+        win.present()
+
+
+def main() -> int:
+    app = WearApp()
+    return app.run(None)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

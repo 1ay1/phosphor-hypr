@@ -72,11 +72,20 @@ reloads the running apps.
 
 ### 🎛️ Live appearance tweaker
 
-Want to nudge one thing without designing a whole theme? The tweaker edits any
-single property **on top of** the active theme and applies it instantly.
+Want to nudge one thing without designing a whole theme? Hit **Super+A** (or run
+`wear tweak`) to open a native **GTK4 / libadwaita** editor: a sidebar of
+categories — **Colours · Shape · Feel · Bar · Type** — with real sliders,
+colour pickers, dropdowns and font choosers. Every change applies **instantly**
+to the whole desktop (it edits on top of the active theme). The header bar has a
+base-theme switcher, a randomise-accents shuffle, and **Save as new theme**.
+
+![the GUI groups every property into Colours / Shape / Feel / Bar / Type]
+
+Prefer the keyboard? Everything is scriptable via the same CLI (this is exactly
+what the GUI drives under the hood):
 
 ```sh
-wear tweak            # rofi UI (also bound to Super+A)
+wear tweak            # GTK GUI (Super+A) — wear tweak --rofi forces the rofi menu
 wear set radius 20    # bump window rounding, live
 wear set accent ff8800
 wear set gap_out 24
@@ -86,14 +95,9 @@ wear reset            # clear all tweaks, back to the pure theme
 wear save my-look     # snapshot the current look as a new theme
 ```
 
-The rofi UI groups every editable property — **Colours** (accent/bg/fg + the 8
-ANSI colours, with an eyedropper via `hyprpicker` and palette presets),
-**Shape** (radius, borders, gaps), **Feel** (opacity, blur, glow, animation
-speed/style, tiling layout), **Bar** (position/height/margin) and **Type**
-(UI & mono fonts from `fc-list`, sizes, weight, cursor size). Numbers get a
-`+ / −` stepper, choices a pick-list, colours a swatch strip. Every change
-re-renders the whole desktop live. A `•` marks properties you've overridden;
-**Save as new theme** bakes your tweaks into `themes/<name>.theme`.
+On a headless / non-GTK session `wear tweak` automatically falls back to a
+rofi menu with the same grouped properties (stepper for numbers, swatch strip +
+`hyprpicker` eyedropper for colours, `fc-list` font picker).
 
 Tweaks live in `~/.config/phosphor/overrides.conf` and are cleared when you
 switch to a different base theme (unless you save them first).

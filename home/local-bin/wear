@@ -661,7 +661,15 @@ case "${1:-}" in
   list|ls)           list_themes ;;
   current|active)    current_theme ;;
   reload|re)         apply_theme "$(current_theme)" keep ;;
-  tweak|edit|ui|t)   tweak ;;
+  tweak|edit|ui|t)
+    # Prefer the native GTK GUI; fall back to the rofi menu.
+    gui="$(command -v wear-gui || echo "$HOME/.local/bin/wear-gui")"
+    if [ -x "$gui" ] && python3 -c "import gi; gi.require_version('Adw','1')" >/dev/null 2>&1 \
+       && [ -n "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ] && [ "${1:-}" != "--rofi" ]; then
+      WEAR_BIN="$SELF" exec "$gui"
+    fi
+    tweak ;;
+  gui)               exec "${WEAR_GUI:-$HOME/.local/bin/wear-gui}" ;;
   set)               # wear set <key> <value...>
     shift; key="${1:-}"; shift || true; val="$*"
     [ -z "$key" ] && { warn "usage: wear set <key> <value>"; exit 1; }
@@ -673,8 +681,18 @@ case "${1:-}" in
     : > "$OVERRIDES"; apply_theme "$(current_theme)" keep
     say "tweaks cleared — back to pure $(pretty_name "$(current_theme)")" ;;
   save)              shift; save_theme "${1:-}" ;;
+  random|random-accents) randomise_accents; apply_theme "$(current_theme)" keep ;;
   tweaks|diff)       # show the active overrides
     if [ -s "$OVERRIDES" ]; then cat "$OVERRIDES"; else echo "(no tweaks — pure $(current_theme))"; fi ;;
+  schema)            tweak_schema ;;   # machine-readable prop schema (for the GUI)
+  get)               shift; eff_value "${1:-}"; echo ;;   # effective value of one key
+  values)            # dump every schema key's effective value as key=value
+    load_palette "$(current_theme)" >/dev/null 2>&1
+    while IFS='|' read -r k _ _ _; do
+      case "$k" in '##'*|'') continue ;; esac
+      printf '%s=%s\n' "$k" "${PAL[$k]:-}"
+    done < <(tweak_schema) ;;
+  is-overridden)     shift; grep -qE "^\s*${1:-__none__}=" "$OVERRIDES" 2>/dev/null && echo yes || echo no ;;
   -h|--help|help)
     sed -n '2,20p' "$SELF" | sed 's/^# \{0,1\}//'
     echo

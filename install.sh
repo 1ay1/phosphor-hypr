@@ -33,6 +33,7 @@ PKGS_REPO=(
   satty wf-recorder jq fzf hyprpicker wlogout brightnessctl playerctl
   pipewire wireplumber dolphin gvfs libcanberra
   glib2 python
+  python-gobject gtk4 libadwaita   # native GTK4 appearance GUI (wear-gui)
 )
 PKGS_AUR=(
   neowall-git                 # GPU shader wallpaper daemon
