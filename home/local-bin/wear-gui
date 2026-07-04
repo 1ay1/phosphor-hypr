@@ -232,6 +232,9 @@ class WearWindow(Adw.ApplicationWindow):
 
     def _build_pages(self):
         self._building = True
+        # remember which page the user is on so a rebuild (randomise/undo/...)
+        # restores it instead of dumping them back on the first page
+        prev_cat = self.stack.get_visible_child_name()
         # clear old
         child = self.sidebar.get_first_child()
         while child:
@@ -245,6 +248,7 @@ class WearWindow(Adw.ApplicationWindow):
             old = nxt
 
         first_row = None
+        restore_row = None
         for cat, props in self.schema:
             # sidebar row
             row = Gtk.ListBoxRow()
@@ -259,6 +263,8 @@ class WearWindow(Adw.ApplicationWindow):
             self.sidebar.append(row)
             if first_row is None:
                 first_row = row
+            if cat == prev_cat:
+                restore_row = row
 
             # content page
             page = Adw.PreferencesPage()
@@ -297,7 +303,9 @@ class WearWindow(Adw.ApplicationWindow):
             scroller = Gtk.ScrolledWindow(child=page, vexpand=True)
             self.stack.add_named(scroller, cat)
 
-        if first_row:
+        if restore_row is not None:
+            self.sidebar.select_row(restore_row)
+        elif first_row:
             self.sidebar.select_row(first_row)
         # let queued construction events drain before re-enabling applies
         GLib.idle_add(self._end_building)
