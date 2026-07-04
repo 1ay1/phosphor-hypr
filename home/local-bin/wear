@@ -360,9 +360,11 @@ load_palette() {
   # vertical bars stack modules; flag it so the css/config can adapt
   case "${PAL[bar_position]}" in left|right) PAL[bar_vertical]=1 ;; *) PAL[bar_vertical]=0 ;; esac
   if [ "${PAL[bar_vertical]}" = 1 ]; then
-    # a vertical bar stacks modules; wide text (window title, clock seconds)
-    # would balloon the width, so hide the title and keep labels compact.
-    PAL[bar_vertical_css]='#window { min-width: 0; } .modules-left, .modules-center, .modules-right { padding: 6px 0; } #workspaces { padding: 0; } #workspaces button { padding: 6px 0; } tooltip { margin-left: 8px; }'
+    # a vertical (left/right) bar stacks modules top-to-bottom. Center every
+    # module horizontally, give the three groups even vertical padding, hide the
+    # window title (would balloon the width), and compact the workspace pills so
+    # the column stays a tidy, aligned strip — mirrors how top/bottom look.
+    PAL[bar_vertical_css]='window#waybar { min-width: 0; } .modules-left, .modules-center, .modules-right { padding: 8px 0; } .modules-left > widget, .modules-center > widget, .modules-right > widget { margin: 0; } #custom-arch, #clock, #cpu, #custom-cpu, #memory, #temperature, #disk, #pulseaudio, #network, #bluetooth, #custom-gpu, #custom-uptime, #custom-kernel, #custom-power, #tray { margin: 3px 0; padding: 4px 0; } #window { min-width: 0; opacity: 0; } #workspaces { padding: 0; } #workspaces button { padding: 5px 0; margin: 2px 0; }'
   else
     PAL[bar_vertical_css]=''
   fi
@@ -439,11 +441,13 @@ load_palette() {
   esac
 
   # bar_uppercase: GTK CSS has no text-transform, so genuinely upcase the
-  # literal text in each format string (letters OUTSIDE {placeholders}).
+  # literal text in each format string (letters OUTSIDE {placeholders}). Covers
+  # every stat label including the custom cpu/gpu scripts so nothing stays
+  # lowercase while the rest of the bar is CAPS.
   if [ "${PAL[bar_uppercase]}" = on ]; then
     local _uk _uv
-    for _uk in fmt_cpu fmt_memory fmt_temp fmt_disk fmt_audio fmt_audio_muted \
-               fmt_net_wifi fmt_net_eth fmt_net_down; do
+    for _uk in fmt_cpu fmt_cpu_combo fmt_gpu fmt_memory fmt_temp fmt_disk \
+               fmt_audio fmt_audio_muted fmt_net_wifi fmt_net_eth fmt_net_down; do
       _uv="${PAL[$_uk]}"
       PAL[$_uk]="$(awk -v s="$_uv" 'BEGIN{
         out=""; inb=0
@@ -521,10 +525,13 @@ load_palette() {
   # are excluded; the divider sits on the right-group stat modules only, evenly
   # — no single module (GPU) is special anymore. No '|' (render sed delimiter).
   local _seprule="#memory, #temperature, #disk, #custom-gpu, #pulseaudio, #network, #bluetooth, #custom-uptime, #custom-kernel, #custom-power"
+  # horizontal bars divide with a left border; vertical bars divide with a top
+  # border so the hairline sits BETWEEN stacked modules, not beside them.
+  local _sedge="left"; [ "${PAL[bar_vertical]}" = 1 ] && _sedge="top"
   case "${PAL[bar_module_sep]}" in
-    line)  PAL[bar_sep_css]="$_seprule { border-left: 1px solid alpha(@green, 0.3); padding-left: 8px; margin-left: 4px; }" ;;
-    thick) PAL[bar_sep_css]="$_seprule { border-left: 2px solid alpha(@green, 0.45); padding-left: 8px; margin-left: 4px; }" ;;
-    dot)   PAL[bar_sep_css]="$_seprule { border-left: 1px dotted alpha(@green, 0.45); padding-left: 8px; margin-left: 4px; }" ;;
+    line)  PAL[bar_sep_css]="$_seprule { border-$_sedge: 1px solid alpha(@green, 0.3); padding-$_sedge: 8px; margin-$_sedge: 4px; }" ;;
+    thick) PAL[bar_sep_css]="$_seprule { border-$_sedge: 2px solid alpha(@green, 0.45); padding-$_sedge: 8px; margin-$_sedge: 4px; }" ;;
+    dot)   PAL[bar_sep_css]="$_seprule { border-$_sedge: 1px dotted alpha(@green, 0.45); padding-$_sedge: 8px; margin-$_sedge: 4px; }" ;;
     *)     PAL[bar_sep_css]='' ;;
   esac
 
