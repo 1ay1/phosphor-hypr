@@ -1059,7 +1059,57 @@ randomise_accents() {
   fi
   set_override on_accent "$oa"
   RANDOM_STRATEGY="$name · hue $h°"
-  preview
+}
+
+# --- section randomisers -----------------------------------------------------
+# Only STYLE gets rolled — never functional choices (bar modules, clock style,
+# notification timeout, fonts, layout, icon/cursor themes stay yours).
+# Ranges are tasteful sub-bands of the schema, so every roll is livable.
+_rint()   { echo $(( $1 + RANDOM % ($2 - $1 + 1) )); }             # int in [a,b]
+_reven()  { local v; v=$(_rint "$1" "$2"); echo $(( v / 2 * 2 )); } # even int
+_rfloat() { awk -v lo="$1" -v hi="$2" -v r="$RANDOM" 'BEGIN{printf "%.2f", lo+(hi-lo)*r/32768}'; }
+_rpick()  { local -a a=("$@"); echo "${a[RANDOM % ${#a[@]}]}"; }   # repeat args to bias
+
+randomise_shape() {
+  set_override radius       "$(_reven 0 22)"
+  set_override border_width "$(_rint 1 3)"
+  local gi; gi="$(_reven 2 14)"
+  set_override gap_in  "$gi"
+  set_override gap_out "$(( gi + $(_reven 2 12) ))"
+}
+
+randomise_feel() {
+  local oa; oa="$(_rfloat 0.85 1.0)"
+  set_override opacity_active   "$oa"
+  set_override opacity_inactive "$(awk -v a="$oa" -v d="$(_rfloat 0.04 0.15)" 'BEGIN{v=a-d; if(v<0.6)v=0.6; printf "%.2f", v}')"
+  set_override blur_size     "$(_rint 3 12)"
+  set_override blur_passes   "$(_rint 1 3)"
+  set_override blur_vibrancy "$(_rfloat 0.05 0.50)"
+  set_override glow          "$(_rfloat 0.00 0.60)"
+  set_override anim_speed    "$(_rint 3 8)"
+  set_override anim_style    "$(_rpick slide popin fade)"
+  set_override term_opacity  "$(_rfloat 0.80 1.0)"
+  set_override term_padding  "$(_reven 6 20)"
+}
+
+randomise_bar() {
+  set_override bar_position "$(_rpick top top top bottom)"   # biased: top
+  set_override bar_height   "$(_reven 26 40)"
+  local m; m="$(_reven 0 12)"
+  set_override bar_margin  "$m"
+  set_override bar_spacing "$(_rint 2 10)"
+  # docked bar (no margin) looks best square; floating bar gets rounded pills
+  if [ "$m" -eq 0 ]; then set_override bar_radius 0
+  else set_override bar_radius "$(_reven 6 18)"; fi
+  set_override bar_opacity      "$(_rfloat 0.70 1.0)"
+  set_override bar_border_width "$(_rint 0 2)"
+}
+
+randomise_popups() {
+  set_override rofi_width     "$(( $(_rint 24 40) * 20 ))"   # 480–800, step 20
+  set_override rofi_lines     "$(_rint 6 12)"
+  set_override notif_width    "$(( $(_rint 15 23) * 20 ))"   # 300–460, step 20
+  set_override notif_position "$(_rpick top-right top-right top-left bottom-right)"
 }
 
 # Main tweaker menu: flat list of every editable property + actions.
@@ -1074,6 +1124,7 @@ tweak() {
     # header actions
     rows+="\uf043  <b>Base theme</b>: $(pretty_name "$cur_theme")\t@base\n"
     rows+="\uf5aa  <b>Random accents</b> \uf522\t@random\n"
+    rows+="\uf522  <b>Random everything</b>  <span size='small'>(style only)</span>\t@chaos\n"
     rows+="\uf0c7  <b>Save as new theme…</b>\t@save\n"
     local ntweaks=0; [ -f "$OVERRIDES" ] && ntweaks=$(grep -cvE '^\s*(#|$)' "$OVERRIDES" 2>/dev/null || echo 0)
     rows+="\u21ba  <b>Reset all tweaks</b>  <span size='small'>($ntweaks active)</span>\t@reset\n"
@@ -1106,7 +1157,8 @@ tweak() {
       @base)  local t; mapfile -t _ts < <(list_themes)
               t="$(printf '%s\n' "${_ts[@]}" | _rofi 'base theme' 'switch base (clears tweaks)')"
               [ -n "$t" ] && [ -f "$THEMES_DIR/$t.theme" ] && { apply_theme "$t" >/dev/null 2>&1; cur_theme="$t"; } ;;
-      @random) randomise_accents ;;
+      @random) randomise_accents; preview ;;
+      @chaos)  randomise_accents; randomise_shape; randomise_feel; randomise_bar; randomise_popups; preview ;;
       @save)  local nm; nm="$(printf '' | _rofi 'save as' 'name for the new theme')"
               [ -n "$nm" ] && { save_theme "$nm"; cur_theme="$(current_theme)"; } ;;
       @reset) : > "$OVERRIDES"; preview ;;
@@ -1543,8 +1595,22 @@ case "${1:-}" in
     snapshot; : > "$OVERRIDES"; apply_theme "$(current_theme)" keep
     say "tweaks cleared — back to pure $(pretty_name "$(current_theme)")" ;;
   save)              shift; save_theme "${1:-}" ;;
-  random|random-accents|shuffle) snapshot; randomise_accents; apply_theme "$(current_theme)" keep
-    say "new accents: ${BOLD}${RANDOM_STRATEGY:-}${NC} — roll again, or wear undo" ;;
+  random|random-accents|shuffle) # wear random [accents|shape|feel|bar|popups|everything]
+    sect="${2:-}"
+    [ "$1" = random-accents ] && sect="${sect:-accents}"
+    sect="$(printf '%s\n' accents colours shape feel bar popups everything all | _match "${sect:-everything}" || echo everything)"
+    snapshot
+    case "$sect" in
+      accents|colours) randomise_accents; msg="accents: ${RANDOM_STRATEGY:-}" ;;
+      shape)   randomise_shape;   msg="shape (radius/borders/gaps)" ;;
+      feel)    randomise_feel;    msg="feel (opacity/blur/glow/anims)" ;;
+      bar)     randomise_bar;     msg="bar (geometry & look)" ;;
+      popups)  randomise_popups;  msg="popups (launcher & notifications)" ;;
+      *)       randomise_accents; randomise_shape; randomise_feel; randomise_bar; randomise_popups
+               msg="everything — ${RANDOM_STRATEGY:-} accents + shape + feel + bar + popups" ;;
+    esac
+    apply_theme "$(current_theme)" keep
+    say "randomised ${BOLD}$msg${NC} — roll again, or wear undo" ;;
   from-color|color)  shift; from_color "$@" ;;
   from|from-image)   shift; from_image "$@" ;;
   dark|light)        flip_mode "$1" ;;
@@ -1578,6 +1644,8 @@ case "${1:-}" in
     echo "  wear reset            clear all tweaks"
     echo "  wear undo             revert the last change (30 steps)"
     echo "  wear save <name>      snapshot current look as a new theme"
+    echo "  wear random [what]    tasteful dice roll — everything (default),"
+    echo "                        or just: accents shape feel bar popups"
     echo
     echo "Smart:"
     echo "  wear dark|light|toggle  flip ANY theme's polarity, hues preserved"

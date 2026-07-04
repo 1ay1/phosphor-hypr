@@ -132,8 +132,8 @@ class WearWindow(Adw.ApplicationWindow):
         header.pack_start(theme_btn)
 
         rnd_btn = Gtk.Button(icon_name="media-playlist-shuffle-symbolic",
-                             tooltip_text="Randomise accents")
-        rnd_btn.connect("clicked", lambda *_: self._run_and_refresh("random-accents"))
+                             tooltip_text="Randomise everything (style only)")
+        rnd_btn.connect("clicked", lambda *_: self._run_and_refresh("random", "everything"))
         header.pack_start(rnd_btn)
 
         undo_btn = Gtk.Button(icon_name="edit-undo-symbolic", tooltip_text="Undo last change")
@@ -219,6 +219,17 @@ class WearWindow(Adw.ApplicationWindow):
         self.content_page.set_title(name)
 
     # -- build all pages -----------------------------------------------------
+    # Pages that have a style randomiser in the engine (wear random <section>).
+    RANDOM_SECTIONS = {"Colours": "accents", "Shape": "shape", "Feel": "feel",
+                       "Bar": "bar", "Popups": "popups"}
+
+    def _rand_btn(self, sect: str) -> Gtk.Button:
+        btn = Gtk.Button(icon_name="media-playlist-shuffle-symbolic",
+                         valign=Gtk.Align.CENTER, css_classes=["flat"],
+                         tooltip_text=f"Randomise {sect} (tasteful ranges — undo to revert)")
+        btn.connect("clicked", lambda *_: self._run_and_refresh("random", sect))
+        return btn
+
     def _build_pages(self):
         self._building = True
         # clear old
@@ -251,12 +262,15 @@ class WearWindow(Adw.ApplicationWindow):
 
             # content page
             page = Adw.PreferencesPage()
+            rand_sect = self.RANDOM_SECTIONS.get(cat)
             if cat == "Colours":
                 # one section, but grouped for scanability
                 ui_grp = Adw.PreferencesGroup(
                     title="Palette",
                     description="Every colour below drives GTK, Qt, KDE, the bar, "
                                 "terminal, notifications and window borders at once.")
+                if rand_sect:
+                    ui_grp.set_header_suffix(self._rand_btn(rand_sect))
                 term_grp = Adw.PreferencesGroup(title="Terminal ANSI (also used as semantic colours)")
                 page.add(ui_grp)
                 page.add(term_grp)
@@ -266,6 +280,8 @@ class WearWindow(Adw.ApplicationWindow):
                 look_grp = Adw.PreferencesGroup(
                     title="Geometry & look",
                     description="Changes restart waybar instantly.")
+                if rand_sect:
+                    look_grp.set_header_suffix(self._rand_btn(rand_sect))
                 mod_grp = Adw.PreferencesGroup(title="Modules")
                 page.add(look_grp)
                 page.add(mod_grp)
@@ -273,6 +289,8 @@ class WearWindow(Adw.ApplicationWindow):
                     (mod_grp if p["key"].startswith("bar_mod_") else look_grp).add(self._build_row(p))
             else:
                 grp = Adw.PreferencesGroup(title=cat)
+                if rand_sect:
+                    grp.set_header_suffix(self._rand_btn(rand_sect))
                 page.add(grp)
                 for p in props:
                     grp.add(self._build_row(p))
