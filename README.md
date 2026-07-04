@@ -54,6 +54,9 @@ The installer will:
 | `Kvantum/` | Optional Kvantum theme |
 | `kde/`    | KDE Plasma **Phosphor** color scheme (Dolphin, Kate, …) |
 | `neowall/` | Animated GPU-shader wallpaper (matrix/synthwave/phosphor) |
+| `wlogout/` | Themed logout menu |
+| `flameshot/` | Screenshot tool config |
+| `~/.local/bin/` | `shader-switch.sh` — Rofi wallpaper-shader picker |
 
 Fonts: **JetBrainsMono Nerd Font** · Cursor: **Bibata-Modern-Amber** · Icons: **Papirus-Dark (green folders)**
 
@@ -85,8 +88,10 @@ Fonts: **JetBrainsMono Nerd Font** · Cursor: **Bibata-Modern-Amber** · Icons: 
 ## 📦 Dependencies
 
 Installed automatically: `hyprland hyprlock hypridle waybar dunst rofi kitty
-qt5ct qt6ct kvantum papirus-icon-theme bibata-cursor-theme ttf-jetbrains-mono-nerd
-ttf-nerd-fonts-symbols wl-clipboard cliphist polkit-gnome` · AUR: `neowall-git`
+alacritty qt5ct qt6ct kvantum papirus-icon-theme bibata-cursor-theme
+ttf-jetbrains-mono-nerd ttf-firacode-nerd flameshot hyprpicker wlogout
+brightnessctl playerctl pipewire wireplumber dolphin wl-clipboard cliphist
+polkit-gnome libnotify` · AUR: `neowall-git catppuccin-gtk-theme-mocha papirus-folders`
 
 ---
 

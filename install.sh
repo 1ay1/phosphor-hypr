@@ -24,14 +24,20 @@ fi
 # --- 1. packages -------------------------------------------------------------
 PKGS_REPO=(
   hyprland hyprlock hypridle xdg-desktop-portal-hyprland
-  waybar dunst rofi kitty
+  waybar dunst rofi kitty alacritty
   qt5ct qt6ct kvantum
   papirus-icon-theme bibata-cursor-theme
-  ttf-jetbrains-mono-nerd ttf-nerd-fonts-symbols
-  wl-clipboard cliphist polkit-gnome network-manager-applet blueman
+  ttf-jetbrains-mono-nerd ttf-firacode-nerd ttf-nerd-fonts-symbols
+  wl-clipboard cliphist polkit-gnome network-manager-applet blueman libnotify
+  flameshot hyprpicker wlogout brightnessctl playerctl
+  pipewire wireplumber dolphin
   python
 )
-PKGS_AUR=( neowall-git )   # GPU shader wallpaper daemon
+PKGS_AUR=(
+  neowall-git                 # GPU shader wallpaper daemon
+  catppuccin-gtk-theme-mocha  # base GTK theme the phosphor css overrides
+  papirus-folders             # recolors Papirus folders green
+)
 
 install_pkgs() {
   say "Installing packages"
@@ -70,8 +76,25 @@ deploy_config() {
     info "~/.config/$name"
   done
 
-  # substitute __HOME__ placeholder in qt configs
-  sed -i "s|__HOME__|$HOME|g" "$CFG/qt5ct/qt5ct.conf" "$CFG/qt6ct/qt6ct.conf" 2>/dev/null || true
+  # substitute __HOME__ placeholder in templated configs
+  sed -i "s|__HOME__|$HOME|g" \
+    "$CFG/qt5ct/qt5ct.conf" "$CFG/qt6ct/qt6ct.conf" \
+    "$CFG/flameshot/flameshot.ini" 2>/dev/null || true
+}
+
+deploy_local_bin() {
+  say "Installing helper scripts to ~/.local/bin"
+  mkdir -p "$HOME/.local/bin"
+  if [ -d "$REPO_DIR/home/local-bin" ]; then
+    for s in "$REPO_DIR"/home/local-bin/*; do
+      [ -e "$s" ] || continue
+      cp -a "$s" "$HOME/.local/bin/"
+      chmod +x "$HOME/.local/bin/$(basename "$s")"
+      info "~/.local/bin/$(basename "$s")"
+    done
+  fi
+  # screenshot target dir (flameshot + hyprland bind)
+  mkdir -p "$HOME/Pictures/Screenshots"
 }
 
 deploy_home() {
@@ -131,6 +154,7 @@ main() {
   if [ "$SKIP_PKGS" != "1" ]; then install_pkgs; else say "Skipping package install (PHOSPHOR_SKIP_PKGS=1)"; fi
 
   deploy_config
+  deploy_local_bin
   deploy_home
   deploy_kde_scheme
   apply_icons
