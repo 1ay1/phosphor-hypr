@@ -74,12 +74,27 @@ reloads the running apps.
 
 Want to nudge one thing without designing a whole theme? Hit **Super+A** (or run
 `wear tweak`) to open a native **GTK4 / libadwaita** editor: a sidebar of
-categories — **Colours · Shape · Feel · Bar · Type** — with real sliders,
-colour pickers, dropdowns and font choosers. Every change applies **instantly**
-to the whole desktop (it edits on top of the active theme). The header bar has a
-base-theme switcher, a randomise-accents shuffle, and **Save as new theme**.
+categories — **Colours · Terminal palette · Shape · Feel · Bar · Type ·
+Terminal · Engines** — with real sliders, colour pickers, dropdowns and font
+choosers. Every change applies **instantly** to the whole desktop (it edits on
+top of the active theme). The header bar has a base-theme switcher, a
+randomise-accents shuffle, and **Save as new theme**.
 
-![the GUI groups every property into Colours / Shape / Feel / Bar / Type]
+It covers **everything** — all ~60 properties:
+
+- **Colours** — the full palette: accents, backgrounds (main/alt/dim), surface,
+  overlay, foregrounds (main/dim/faint), on-accent.
+- **Terminal palette** — all 16 ANSI colours.
+- **Shape** — rounding, border width, inner/outer gaps, tiling layout.
+- **Feel** — window opacities, blur size/passes/vibrancy, glow, animation
+  speed & style.
+- **Bar** — position, height, margin, spacing, radius.
+- **Type** — UI & mono fonts, sizes, weight.
+- **Terminal** — kitty opacity & padding.
+- **Engines** — dark/light mode, **GTK theme**, **icon theme**, **cursor theme
+  & size**, **Qt style** (Fusion/kvantum), **Kvantum theme**, and the
+  **wallpaper shader** — all discovered from what's actually installed on your
+  system (searchable dropdowns).
 
 Prefer the keyboard? Everything is scriptable via the same CLI (this is exactly
 what the GUI drives under the hood):

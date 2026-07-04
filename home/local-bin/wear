@@ -64,6 +64,39 @@ hex_to_rgb() {
   printf '%d,%d,%d' "0x${h:0:2}" "0x${h:2:2}" "0x${h:4:2}"
 }
 
+# --- discover available options on THIS machine (for dynamic pickers) -------
+list_options() { # $1 = kind
+  case "$1" in
+    gtk_theme)
+      { ls /usr/share/themes "$HOME/.themes" "$HOME/.local/share/themes" 2>/dev/null; } \
+        | grep -vE 'hdpi$|xhdpi$' | sort -u ;;
+    icon_theme)
+      local d t
+      for d in /usr/share/icons "$HOME/.icons" "$HOME/.local/share/icons"; do
+        [ -d "$d" ] || continue
+        for t in "$d"/*/; do
+          [ -f "$t/index.theme" ] && [ ! -d "$t/cursors" ] && basename "$t"
+        done
+      done | sort -u ;;
+    cursor_theme)
+      local d t
+      for d in /usr/share/icons "$HOME/.icons" "$HOME/.local/share/icons"; do
+        [ -d "$d" ] || continue
+        for t in "$d"/*/; do [ -d "$t/cursors" ] && basename "$t"; done
+      done | sort -u ;;
+    kvantum_theme)
+      { ls /usr/share/Kvantum "$HOME/.config/Kvantum" 2>/dev/null; } \
+        | grep -v '\.kvconfig$' | sort -u ;;
+    qt_style)
+      printf '%s\n' Fusion Windows kvantum kvantum-dark ;;
+    wallpaper_shader)
+      ls "$CFG/neowall/shaders/" 2>/dev/null | sed 's/\.glsl$//' | sort -u ;;
+    font)
+      command -v fc-list >/dev/null 2>&1 && fc-list : family | sed 's/,.*//' | sort -u ;;
+    *) return 1 ;;
+  esac
+}
+
 # --- render a single template ($1=src.tmpl  $2=dest) using the loaded palette
 render() {
   local src="$1" dest="$2"
@@ -164,6 +197,12 @@ load_palette() {
   ICON_THEME="${icon_theme:-Papirus-Dark}"
   CURSOR_THEME="${cursor_theme:-Bibata-Modern-Amber}"
   WALL_SHADER="${wallpaper_shader:-}"
+  # engine keys mirrored into PAL so `values`/the GUI can read & tweak them
+  PAL[mode]="$THEME_MODE"
+  PAL[gtk_theme]="$GTK_THEME_NAME"
+  PAL[icon_theme]="$ICON_THEME"
+  PAL[cursor_theme]="$CURSOR_THEME"
+  PAL[wallpaper_shader]="$WALL_SHADER"
 }
 
 # --- apply everything -------------------------------------------------------
@@ -354,50 +393,78 @@ save_theme() {  # $1=new slug
 
 # Editable-property schema.  Format per line:
 #   key|Label|type|spec
-# type: color | int:min:max:step | float:min:max:step | choice | font
-# spec: for choice, a comma list; for others, a hint string.
+# type: color | int:min:max:step | float:min:max:step | choice | font | pick:<kind>
+# spec: for choice, a comma list; for pick, ignored (options discovered on
+# disk via list_options); otherwise a hint string.
 tweak_schema() {
   cat <<'SCHEMA'
 ## Colours
 accent|Accent|color|primary highlight
 accent2|Accent 2|color|secondary
 accent3|Accent 3|color|tertiary
+on_accent|On accent|color|text on accent fills
 bg|Background|color|main bg
-surface|Surface|color|cards/panels
+bg_alt|Background alt|color|panels/bar bg
+bg_dim|Background dim|color|darkest wells
+surface|Surface|color|cards/popups
+overlay|Overlay|color|borders/inactive
 fg|Foreground|color|main text
-red|Red|color|
-green|Green|color|
-yellow|Yellow|color|
+fg_dim|Foreground dim|color|secondary text
+fg_faint|Foreground faint|color|disabled text
+## Terminal palette
+red|Red|color|errors
+green|Green|color|success
+yellow|Yellow|color|warnings
 blue|Blue|color|
 magenta|Magenta|color|
 cyan|Cyan|color|
+br_black|Bright black|color|comments/grey
+br_red|Bright red|color|
+br_green|Bright green|color|
+br_yellow|Bright yellow|color|
+br_blue|Bright blue|color|
+br_magenta|Bright magenta|color|
+br_cyan|Bright cyan|color|
+br_white|Bright white|color|
 ## Shape
 radius|Corner radius|int:0:30:2|window rounding px
 border_width|Border width|int:0:8:1|px
 gap_in|Inner gap|int:0:30:2|px between windows
 gap_out|Outer gap|int:0:40:2|px to screen edge
-bar_radius|Bar radius|int:0:24:2|waybar corner px
+layout|Tiling layout|choice|dwindle,master
 ## Feel
 opacity_active|Active opacity|float:0.5:1.0:0.02|focused window
 opacity_inactive|Inactive opacity|float:0.4:1.0:0.02|unfocused window
-blur_size|Blur size|int:0:20:1|
-blur_passes|Blur passes|int:0:5:1|
+blur_size|Blur size|int:0:20:1|px kernel
+blur_passes|Blur passes|int:0:5:1|more = smoother/slower
+blur_vibrancy|Blur vibrancy|float:0.0:1.0:0.05|colour saturation in blur
 glow|Glow|float:0.0:1.0:0.05|shadow bloom
-anim_speed|Anim speed|int:1:12:1|lower = faster
+anim_speed|Anim speed|int:1:12:1|duration (higher = slower)
 anim_style|Anim style|choice|slide,popin,fade
-layout|Tiling layout|choice|dwindle,master
 ## Bar
 bar_position|Bar position|choice|top,bottom
 bar_height|Bar height|int:20:56:2|px
-bar_margin|Bar margin|int:0:24:2|px
+bar_margin|Bar margin|int:0:24:2|px from screen edge
+bar_spacing|Bar spacing|int:0:20:1|px between modules
+bar_radius|Bar radius|int:0:24:2|module rounding px
 ## Type
-font_ui|UI font|font|panel/menus
+font_ui|UI font|font|panel/menus/GTK
 font_mono|Mono font|font|terminal
 font_size_ui|UI font size|int:9:20:1|pt
 font_size_term|Term font size|float:8:20:0.5|pt
 font_weight|Font weight|choice|normal,bold
-term_opacity|Term opacity|float:0.5:1.0:0.02|kitty bg
+## Terminal
+term_opacity|Term opacity|float:0.5:1.0:0.02|kitty background
+term_padding|Term padding|int:0:30:2|kitty window padding px
+## Engines
+mode|Dark / light|choice|dark,light
+gtk_theme|GTK theme|pick:gtk_theme|widget theme for GTK apps
+icon_theme|Icon theme|pick:icon_theme|app + folder icons
+cursor_theme|Cursor theme|pick:cursor_theme|pointer
 cursor_size|Cursor size|int:16:48:2|px
+qt_style|Qt style|pick:qt_style|widget engine for Qt apps
+kvantum_theme|Kvantum theme|pick:kvantum_theme|when Qt style = kvantum
+wallpaper_shader|Wallpaper shader|pick:wallpaper_shader|neowall GPU shader
 SCHEMA
 }
 
@@ -582,6 +649,21 @@ edit_font() { # $1=key $2=label
   set_override "$key" "$sel"; preview
 }
 
+# Edit a PICK key: options discovered on disk (gtk/icon/cursor/kvantum/shader).
+edit_pick() { # $1=key $2=label $3=kind
+  local key="$1" label="$2" kind="$3" cur; cur="$(eff_value "$key")"
+  local opts; opts="$(list_options "$kind")"
+  [ -z "$opts" ] && { warn "no $kind options found on this system"; return 0; }
+  local sel; sel="$(printf 'current: %s\n↺ reset to theme default\n%s' "$cur" "$opts" \
+      | _rofi "$label" "pick $label (current: $cur)")" || return 0
+  [ -z "$sel" ] && return 0
+  case "$sel" in
+    current:*) return 0 ;;
+    *reset*)   unset_override "$key"; preview; return 0 ;;
+    *)         set_override "$key" "$sel"; preview ;;
+  esac
+}
+
 # Dispatch to the right editor based on the schema type.
 edit_prop() { # $1=key $2=label $3=type $4=spec
   case "$3" in
@@ -590,6 +672,7 @@ edit_prop() { # $1=key $2=label $3=type $4=spec
     float:*) IFS=: read -r _ mn mx st <<<"$3"; edit_number "$1" "$2" "$mn" "$mx" "$st" 1 ;;
     choice) edit_choice "$1" "$2" "$4" ;;
     font)   edit_font   "$1" "$2" ;;
+    pick:*) edit_pick   "$1" "$2" "${3#pick:}" ;;
   esac
 }
 
@@ -685,6 +768,7 @@ case "${1:-}" in
   tweaks|diff)       # show the active overrides
     if [ -s "$OVERRIDES" ]; then cat "$OVERRIDES"; else echo "(no tweaks — pure $(current_theme))"; fi ;;
   schema)            tweak_schema ;;   # machine-readable prop schema (for the GUI)
+  options)           shift; list_options "${1:-}" ;;  # discovered choices for pick: keys
   get)               shift; eff_value "${1:-}"; echo ;;   # effective value of one key
   values)            # dump every schema key's effective value as key=value
     load_palette "$(current_theme)" >/dev/null 2>&1

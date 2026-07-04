@@ -24,10 +24,13 @@ WEAR = os.environ.get("WEAR_BIN") or shutil.which("wear") \
 
 CATEGORY_ICONS = {
     "Colours": "applications-graphics-symbolic",
+    "Terminal palette": "utilities-terminal-symbolic",
     "Shape": "view-grid-symbolic",
     "Feel": "weather-clear-symbolic",
     "Bar": "view-dual-symbolic",
     "Type": "font-x-generic-symbolic",
+    "Terminal": "utilities-terminal-symbolic",
+    "Engines": "applications-system-symbolic",
 }
 
 
@@ -90,6 +93,7 @@ class WearWindow(Adw.ApplicationWindow):
         self._apply_pending = False
         self._debounce_id = 0
         self._pending_args: tuple[str, str] | None = None
+        self._building = False   # suppress widget callbacks during (re)build
 
         self.schema = load_schema()
         self.values = load_values()
@@ -160,6 +164,8 @@ class WearWindow(Adw.ApplicationWindow):
 
     def _set(self, key: str, value: str):
         """Debounced live apply so dragging a slider doesn't spam reloads."""
+        if self._building:
+            return  # ignore events fired while constructing widgets
         self._pending_args = (key, value)
         if self._debounce_id:
             GLib.source_remove(self._debounce_id)
@@ -196,6 +202,7 @@ class WearWindow(Adw.ApplicationWindow):
 
     # -- build all pages -----------------------------------------------------
     def _build_pages(self):
+        self._building = True
         # clear old
         child = self.sidebar.get_first_child()
         while child:
@@ -235,6 +242,12 @@ class WearWindow(Adw.ApplicationWindow):
 
         if first_row:
             self.sidebar.select_row(first_row)
+        # let queued construction events drain before re-enabling applies
+        GLib.idle_add(self._end_building)
+
+    def _end_building(self) -> bool:
+        self._building = False
+        return False
 
     # -- one preference row per property ------------------------------------
     def _build_row(self, p: dict) -> Gtk.Widget:
@@ -275,6 +288,26 @@ class WearWindow(Adw.ApplicationWindow):
             opts = [o for o in spec.split(",") if o]
             model = Gtk.StringList.new(opts)
             row.set_model(model)
+            if val in opts:
+                row.set_selected(opts.index(val))
+            row.connect("notify::selected", self._on_choice, key, opts)
+            return row
+
+        if typ.startswith("pick:"):
+            kind = typ.split(":", 1)[1]
+            opts = [o for o in wear("options", kind).splitlines() if o.strip()]
+            row = Adw.ComboRow(title=label, subtitle=spec)
+            if not opts:
+                row.set_subtitle(f"nothing found for {kind} on this system")
+                row.set_sensitive(False)
+                return row
+            if val and val not in opts:
+                opts.insert(0, val)          # keep the current value selectable
+            model = Gtk.StringList.new(opts)
+            row.set_model(model)
+            # searchable: type to filter long lists (icon/gtk/kvantum/shaders)
+            row.set_enable_search(True)
+            row.set_expression(Gtk.PropertyExpression.new(Gtk.StringObject, None, "string"))
             if val in opts:
                 row.set_selected(opts.index(val))
             row.connect("notify::selected", self._on_choice, key, opts)
