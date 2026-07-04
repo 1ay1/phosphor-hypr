@@ -49,10 +49,13 @@ The installer:
 
 ```sh
 wear                    # theme picker (Super+Shift+T)
-wear tokyo-night        # put on a theme
+wear tokyo-night        # put on a theme (fuzzy: `wear tokio` works)
 wear tweak              # live GUI editor (Super+A)
 wear from ~/wall.jpg    # 🪄 generate a theme from an image
-wear from-color 7c3aed  # 🪄 generate a theme from one colour
+wear from-color teal    # 🪄 generate a theme from one colour (hex or name)
+wear dark / light       # 🌓 flip ANY theme's polarity, hues preserved
+wear doctor --fix       # 🩺 WCAG contrast audit — auto-repairs failures
+wear import dracula.yaml # wear any of ~250 base16 community schemes
 wear undo               # take it back — 30 steps of history
 wear show               # truecolor palette swatches in the terminal
 ```
@@ -95,13 +98,22 @@ The header has a base-theme switcher, a randomise-accents shuffle, an undo
 button, and **Save as new theme**. The menu hides two generators: **Theme from
 wallpaper…** and **Theme from a colour…**.
 
-Everything the GUI does is plain CLI underneath:
+Everything the GUI does is plain CLI underneath — and the CLI is **smart**.
+Keys are fuzzy (`radus`→`radius`, `acent`→`accent`), colours can be CSS names
+or `#abc`, numbers can be relative, and everything is validated and clamped
+against the schema:
 
 ```sh
-wear set radius 20        # nudge one thing, live
-wear set accent ff8800
+wear set radius +4        # relative nudge
+wear set gap_out 2x       # multiply
+wear set blur max         # jump to the schema limit
+wear set accent hotpink   # 70+ CSS colour names
+wear set accent lighter   # ops: lighter/darker/saturate/desaturate[:pct],
+wear set accent complement#      complement, invert — applied to the current value
+wear set radius default   # un-tweak one key
+wear set cursor bibata    # picks fuzzy-match what's actually installed
 wear tweaks               # list active tweaks
-wear unset radius         # drop one
+wear undo                 # revert the last change — 30 steps of history
 wear reset                # back to the pure theme
 wear save my-look         # snapshot the current look as a real theme
 ```
@@ -126,10 +138,58 @@ wear from-color ff7b39 sunset --light  # named, light-mode
 ```
 
 `wear from <image>` quantises the image, scores candidates by saturation,
-picks the most vivid non-grey as the seed, and blends the background toward
-the image's actual darkest tone — so the theme *feels* like the picture.
-Generated themes are first-class: real `themes/<name>.theme` files you can
-tweak, save and keep. Don't like it? `wear undo`.
+picks the most vivid non-grey as the seed, pulls the accent trio from the
+image's own hues when it's colourful enough (±30° harmonies otherwise), and
+blends the background toward the image's actual darkest tone — so the theme
+*feels* like the picture. Generated themes are first-class: real
+`themes/<name>.theme` files you can tweak, save and keep. Don't like it?
+`wear undo`.
+
+---
+
+## 🌓 Any theme, both polarities
+
+Every theme works in dark **and** light — `wear` re-derives the whole palette
+for the other polarity on the fly, keeping every hue:
+
+```sh
+wear light     # light version of whatever you're wearing
+wear dark      # back to the dark side
+wear toggle    # flip (bind it, cron it at sunset, whatever)
+```
+
+Backgrounds/foregrounds mirror their lightness, accents and ANSI colours are
+nudged into the readable band for the new polarity. It's applied as live
+tweaks — `wear undo` reverts, `wear save <name>` keeps it forever.
+
+## 🩺 Built-in accessibility doctor
+
+`wear doctor` audits the active look against **WCAG AA**: real contrast
+ratios (proper sRGB linearisation) for every text/background pairing the
+desktop actually renders — body text, panels, cards, accent fills,
+error/warning colours, terminal comments — plus GPU-cost warnings.
+
+```sh
+wear doctor        # audit — ✓/✗ per pairing with the measured ratio
+wear doctor --fix  # walk failing colours' lightness (hue untouched) until they pass
+```
+
+Every theme that ships with wear passes all checks.
+
+## 📦 base16 in, base16 out
+
+There are ~250 community [base16 / tinted-theming](https://github.com/tinted-theming/schemes)
+schemes. All of them are wearable:
+
+```sh
+wear import dracula.yaml          # local file — or paste a github URL:
+wear import https://github.com/tinted-theming/schemes/blob/spec-0.11/base16/dracula.yaml
+wear export > my-look.yaml        # share the ACTIVE look as base16
+```
+
+Import maps base00–0F onto the full palette (accent trio = the three most
+saturated slots, on-accent chosen by measured contrast) and writes a
+first-class `.theme` you can tweak, flip and save.
 
 ---
 
@@ -229,19 +289,24 @@ Defaults: **JetBrainsMono Nerd Font** · **Bibata-Modern-Amber** cursor ·
 
 ```
 wear                    theme picker (rofi / fzf)
-wear <name>             switch to a theme
+wear <name>             switch to a theme (fuzzy — wear tokio, wear gruv)
 wear list | current     list themes / print active
 wear reload             re-apply (after editing a palette)
+wear dark|light|toggle  flip polarity, hues preserved
 wear tweak [--rofi]     live editor (GUI, or rofi menu)
-wear set <key> <value>  live override on top of the theme
-wear unset <key>        drop one override
+wear set <key> <value>  smart live override (fuzzy keys, relative values,
+                        colour names & ops, validated + clamped)
+wear unset <k>          drop one override (also: wear set <k> default)
 wear tweaks             list active overrides
 wear reset              clear all overrides
 wear undo               revert last change (30-step history)
 wear save <name>        save current look as a new theme
 wear random-accents     shuffle the accent trio
+wear doctor [--fix]     WCAG AA contrast audit (+ auto-repair)
+wear import <yml|url>   import a base16 scheme
+wear export             active look as base16 yaml
 wear from <image> [name] [--light]      generate theme from an image
-wear from-color <hex> [name] [--light]  generate theme from a colour
+wear from-color <c> [name] [--light]    generate theme from a colour
 wear show               truecolor palette swatches
 wear schema|values|get|options          machine-readable (drives the GUI)
 ```

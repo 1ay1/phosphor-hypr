@@ -78,14 +78,14 @@ list_options() { # $1 = kind
       for d in /usr/share/icons "$HOME/.icons" "$HOME/.local/share/icons"; do
         [ -d "$d" ] || continue
         for t in "$d"/*/; do
-          [ -f "$t/index.theme" ] && [ ! -d "$t/cursors" ] && basename "$t"
+          if [ -f "$t/index.theme" ] && [ ! -d "$t/cursors" ]; then basename "$t"; fi
         done
       done | sort -u ;;
     cursor_theme)
       local d t
       for d in /usr/share/icons "$HOME/.icons" "$HOME/.local/share/icons"; do
         [ -d "$d" ] || continue
-        for t in "$d"/*/; do [ -d "$t/cursors" ] && basename "$t"; done
+        for t in "$d"/*/; do if [ -d "$t/cursors" ]; then basename "$t"; fi; done
       done | sort -u ;;
     kvantum_theme)
       { ls /usr/share/Kvantum "$HOME/.config/Kvantum" 2>/dev/null; } \
@@ -617,9 +617,7 @@ undo() {
 
 # wear from-color <hex> [name] — full theme from ONE colour
 from_color() {
-  local hex="${1:-}"; hex="${hex#\#}"
-  [[ "$hex" =~ ^[0-9a-fA-F]{6}$ ]] || { warn "usage: wear from-color <rrggbb> [name] [--light]"; return 1; }
-  hex="$(echo "$hex" | tr 'A-F' 'a-f')"
+  local hex; hex="$(_norm_color "${1:-}")" || { warn "usage: wear from-color <colour> [name] [--light]  (hex, #abc, or a name like 'teal')"; return 1; }
   local nm="${2:-}" gmode=dark
   case "${2:-}${3:-}" in *--light*) gmode=light ;; esac
   case "$nm" in --light|"") nm="c-$hex" ;; esac
@@ -657,6 +655,40 @@ from_image() {
   case "$nm" in --light|"") nm="$(basename "${img%.*}" | tr 'A-Z' 'a-z')" ;; esac
   local slug; slug="$(echo "$nm" | tr ' ' '-' | tr -cd '[:alnum:]._-' | tr 'A-Z' 'a-z')"
   gen_palette "$seed" "$gmode"
+  # if the image has MORE vivid colours with distinct hues, use them as the
+  # real accent trio instead of the synthetic ±30° harmonies
+  local extras; extras="$(echo "$hist" | while read -r c; do
+      read -r H S L <<<"$(_hsl "$c")"
+      awk -v c="$c" -v h="$H" -v s="$S" -v l="$L" 'BEGIN{ p=(l<0.15||l>0.85)?0.3:1; if(s*p>=0.25) printf "%.4f %.0f %s\n", s*p, h, c }'
+    done | sort -rn)"
+  local seedH; read -r seedH _ _ <<<"$(_hsl "$seed")"
+  local a2="" a3="" line2 ch cc
+  while read -r _ ch cc; do
+    [ -z "$cc" ] && continue
+    [ "$cc" = "$seed" ] && continue
+    # need ≥25° hue distance from the seed and from each other
+    local dh; dh="$(awk -v a="$seedH" -v b="$ch" 'BEGIN{d=a-b; if(d<0)d=-d; if(d>180)d=360-d; print int(d)}')"
+    [ "$dh" -lt 25 ] && continue
+    if [ -z "$a2" ]; then a2="$cc"
+    elif [ -z "$a3" ] && [ "$cc" != "$a2" ]; then
+      local h2 d2; read -r h2 _ _ <<<"$(_hsl "$a2")"
+      d2="$(awk -v a="$h2" -v b="$ch" 'BEGIN{d=a-b; if(d<0)d=-d; if(d>180)d=360-d; print int(d)}')"
+      [ "$d2" -ge 25 ] && a3="$cc"
+    fi
+  done <<<"$extras"
+  if [ -n "$a2" ]; then
+    local H2 S2 L2 alo ahi
+    if [ "$gmode" = light ]; then alo=0.30 ahi=0.48; else alo=0.50 ahi=0.72; fi
+    read -r H2 S2 L2 <<<"$(_hsl "$a2")"
+    GEN[accent2]="$(_hex "$H2" "$S2" "$(awk -v l="$L2" -v lo="$alo" -v hi="$ahi" 'BEGIN{if(l<lo)l=lo; if(l>hi)l=hi; printf "%.4f", l}')")"
+    info "accent2 from image: #${GEN[accent2]}"
+  fi
+  if [ -n "$a3" ]; then
+    local H3 S3 L3
+    read -r H3 S3 L3 <<<"$(_hsl "$a3")"
+    GEN[accent3]="$(_hex "$H3" "$S3" "$(awk -v l="$L3" -v lo="$alo" -v hi="$ahi" 'BEGIN{if(l<lo)l=lo; if(l>hi)l=hi; printf "%.4f", l}')")"
+    info "accent3 from image: #${GEN[accent3]}"
+  fi
   # blend bg toward the image's actual darkest colour for cohesion
   local darkest; darkest="$(echo "$hist" | while read -r c; do
       read -r H S L <<<"$(_hsl "$c")"; awk -v c="$c" -v l="$L" 'BEGIN{printf "%.4f %s\n", l, c}'
@@ -977,6 +1009,405 @@ tweak() {
   done
 }
 
+# ============================================================================
+#  SMART LAYER — fuzzy matching, colour maths, WCAG, mode flip, base16
+# ============================================================================
+
+COLOR_KEYS="bg bg_alt bg_dim surface overlay fg fg_dim fg_faint accent accent2 accent3 on_accent red green yellow blue magenta cyan br_black br_red br_green br_yellow br_blue br_magenta br_cyan br_white"
+
+# levenshtein distance (awk)
+_lev() { awk -v a="$1" -v b="$2" 'BEGIN{
+  la=length(a); lb=length(b)
+  for(i=0;i<=la;i++)d[i,0]=i
+  for(j=0;j<=lb;j++)d[0,j]=j
+  for(i=1;i<=la;i++)for(j=1;j<=lb;j++){
+    c=(substr(a,i,1)==substr(b,j,1))?0:1
+    m=d[i-1,j]+1; if(d[i,j-1]+1<m)m=d[i,j-1]+1; if(d[i-1,j-1]+c<m)m=d[i-1,j-1]+c
+    d[i,j]=m }
+  print d[la,lb] }'
+}
+
+# _match <needle>  (candidates on stdin, one per line)
+# exact → ci-exact → unique prefix → unique substring → fuzzy (lev ≤ 3).
+_match() {
+  local n="$1" ln c d best=999 bm=""; ln="${n,,}"
+  local -a cands=() hits=()
+  mapfile -t cands
+  for c in "${cands[@]}"; do [ "$c" = "$n" ] && { printf '%s' "$c"; return 0; }; done
+  for c in "${cands[@]}"; do [ "${c,,}" = "$ln" ] && { printf '%s' "$c"; return 0; }; done
+  hits=(); for c in "${cands[@]}"; do [[ "${c,,}" == "$ln"* ]] && hits+=("$c"); done
+  [ ${#hits[@]} -eq 1 ] && { printf '%s' "${hits[0]}"; return 0; }
+  hits=(); for c in "${cands[@]}"; do [[ "${c,,}" == *"$ln"* ]] && hits+=("$c"); done
+  [ ${#hits[@]} -eq 1 ] && { printf '%s' "${hits[0]}"; return 0; }
+  if [ ${#hits[@]} -gt 1 ]; then
+    # several contain it — take the closest by edit distance (shortest wins ties)
+    printf '%s' "$(for c in "${hits[@]}"; do echo "$(_lev "$ln" "${c,,}") ${#c} $c"; done | sort -n -k1,1 -k2,2 | head -1 | cut -d' ' -f3-)"
+    return 0
+  fi
+  for c in "${cands[@]}"; do
+    [ -z "$c" ] && continue
+    local lc="${c,,}"
+    d="$(_lev "$ln" "$lc")"
+    # also try against a same-length prefix (catches tokio→tokyo-night)
+    local pd; pd="$(_lev "$ln" "${lc:0:${#ln}}")"; pd=$((pd+1))
+    [ "$pd" -lt "$d" ] && d=$pd
+    if [ "$d" -lt "$best" ]; then best=$d; bm="$c"; fi
+  done
+  if [ -n "$bm" ] && [ "$best" -le 3 ] && [ "$best" -lt "${#n}" ]; then printf '%s' "$bm"; return 0; fi
+  return 1
+}
+
+# CSS named colours → rrggbb (the ones humans actually type)
+_named_color() {
+  case "${1,,}" in
+    black) echo 000000;; white) echo ffffff;; red) echo ff0000;;
+    green) echo 008000;; lime) echo 00ff00;; blue) echo 0000ff;;
+    yellow) echo ffff00;; cyan|aqua) echo 00ffff;; magenta|fuchsia) echo ff00ff;;
+    orange) echo ffa500;; purple) echo 800080;; pink) echo ffc0cb;;
+    hotpink) echo ff69b4;; deeppink) echo ff1493;; brown) echo a52a2a;;
+    chocolate) echo d2691e;; coral) echo ff7f50;; tomato) echo ff6347;;
+    salmon) echo fa8072;; crimson) echo dc143c;; maroon) echo 800000;;
+    olive) echo 808000;; gold) echo ffd700;; khaki) echo f0e68c;;
+    tan) echo d2b48c;; beige) echo f5f5dc;; teal) echo 008080;;
+    turquoise) echo 40e0d0;; navy) echo 000080;; indigo) echo 4b0082;;
+    violet) echo ee82ee;; orchid) echo da70d6;; plum) echo dda0dd;;
+    lavender) echo e6e6fa;; skyblue) echo 87ceeb;; steelblue) echo 4682b4;;
+    slateblue) echo 6a5acd;; royalblue) echo 4169e1;; dodgerblue) echo 1e90ff;;
+    midnightblue) echo 191970;; seagreen) echo 2e8b57;; forestgreen) echo 228b22;;
+    springgreen) echo 00ff7f;; chartreuse) echo 7fff00;; rebeccapurple) echo 663399;;
+    silver) echo c0c0c0;; gray|grey) echo 808080;; dimgray|dimgrey) echo 696969;;
+    slategray|slategrey) echo 708090;; firebrick) echo b22222;; sienna) echo a0522d;;
+    wheat) echo f5deb3;; peachpuff) echo ffdab9;; darkred) echo 8b0000;;
+    darkgreen) echo 006400;; darkblue) echo 00008b;; darkorange) echo ff8c00;;
+    darkviolet) echo 9400d3;; deepskyblue) echo 00bfff;; lightblue) echo add8e6;;
+    lightgreen) echo 90ee90;; lightgray|lightgrey) echo d3d3d3;;
+    aquamarine) echo 7fffd4;; cadetblue) echo 5f9ea0;; goldenrod) echo daa520;;
+    thistle) echo d8bfd8;; mint|mintcream) echo f5fffa;; ivory) echo fffff0;;
+    *) return 1;;
+  esac
+}
+
+# normalise any colour spelling → rrggbb:  #abc / abc / #aabbcc / aabbcc / css name
+_norm_color() {
+  local c="${1#\#}"
+  if [[ "$c" =~ ^[0-9a-fA-F]{6}$ ]]; then printf '%s' "${c,,}"; return 0; fi
+  if [[ "$c" =~ ^[0-9a-fA-F]{3}$ ]]; then
+    c="${c,,}"; printf '%s%s%s%s%s%s' "${c:0:1}" "${c:0:1}" "${c:1:1}" "${c:1:1}" "${c:2:1}" "${c:2:1}"; return 0
+  fi
+  _named_color "$c"
+}
+
+# _color_op <hex> <op[:pct]> → new hex. ops: lighter darker saturate desaturate complement invert
+_color_op() {
+  local cur="$1" op="$2" pct=15 H S L
+  case "$op" in *:*) pct="${op#*:}"; op="${op%%:*}";; esac
+  [[ "$pct" =~ ^[0-9]+$ ]] || pct=15
+  if [ "$op" = invert ]; then
+    awk -v h="$cur" 'BEGIN{printf "%02x%02x%02x", 255-strtonum("0x" substr(h,1,2)), 255-strtonum("0x" substr(h,3,2)), 255-strtonum("0x" substr(h,5,2))}'
+    return 0
+  fi
+  read -r H S L <<<"$(_hsl "$cur")"
+  case "$op" in
+    lighter|lighten)  L="$(awk -v l="$L" -v p="$pct" 'BEGIN{l+=(1-l)*p/100; if(l>1)l=1; printf "%.4f", l}')" ;;
+    darker|darken)    L="$(awk -v l="$L" -v p="$pct" 'BEGIN{l-=l*p/100; if(l<0)l=0; printf "%.4f", l}')" ;;
+    saturate|vivid)   S="$(awk -v s="$S" -v p="$pct" 'BEGIN{s+=(1-s)*p/100; if(s>1)s=1; printf "%.4f", s}')" ;;
+    desaturate|mute)  S="$(awk -v s="$S" -v p="$pct" 'BEGIN{s-=s*p/100; if(s<0)s=0; printf "%.4f", s}')" ;;
+    complement)       H="$(awk -v h="$H" 'BEGIN{printf "%.1f", (h+180)%360}')" ;;
+    *) return 1 ;;
+  esac
+  _hex "$H" "$S" "$L"
+}
+
+# WCAG contrast ratio between two hex colours (proper sRGB linearisation)
+_contrast() { awk -v a="$1" -v b="$2" '
+  function ch(x){ x/=255; return x<=0.03928 ? x/12.92 : ((x+0.055)/1.055)^2.4 }
+  function lum(h){ return 0.2126*ch(strtonum("0x" substr(h,1,2))) \
+                        +0.7152*ch(strtonum("0x" substr(h,3,2))) \
+                        +0.0722*ch(strtonum("0x" substr(h,5,2))) }
+  BEGIN{ l1=lum(a); l2=lum(b); if(l1<l2){t=l1;l1=l2;l2=t}
+         printf "%.2f", (l1+0.05)/(l2+0.05) }'
+}
+
+# schema line for a key: "key|Label|type|spec" (empty if not in schema)
+_schema_line() { tweak_schema | grep -m1 "^${1}|" || true; }
+
+# all settable keys (schema + engine escape hatches)
+_all_keys() {
+  tweak_schema | grep -vE '^(##|$)' | cut -d'|' -f1
+  printf '%s\n' gtk_theme qt_style kvantum_theme anim_bezier
+}
+
+# smart_set <key-ish> <value-ish>: fuzzy key, smart value, validation, clamps.
+#   values: colours (name/#abc/hex), ops (lighter/darker/saturate/desaturate/
+#   complement/invert[:pct]), numbers (+4 -2 ++ -- 2x .5x or absolute, clamped),
+#   choices/picks fuzzy-matched against real options, default = reset key.
+smart_set() {
+  local rawk="$1" rawv="$2" key line label type spec cur new=""
+  key="$(_all_keys | _match "$rawk")" || {
+    warn "unknown property: $rawk"
+    info "closest: $(_all_keys | while read -r k; do echo "$(_lev "$rawk" "$k") $k"; done | sort -n | head -3 | awk '{print $2}' | paste -sd' ')"
+    return 1; }
+  [ "$key" != "$rawk" ] && info "$rawk → ${BOLD}$key${NC}"
+  line="$(_schema_line "$key")"
+  IFS='|' read -r _ label type spec <<<"$line"
+  [ -z "$type" ] && type=raw
+  cur="$(eff_value "$key")"
+
+  # "default" / "reset" → unset the override
+  case "${rawv,,}" in
+    default|reset|base)
+      snapshot; unset_override "$key"; apply_theme "$(current_theme)" keep
+      say "$key → back to base ($(eff_value "$key"))"; return 0 ;;
+  esac
+
+  case "$type" in
+    color)
+      # colour op on the current value?
+      case "${rawv,,}" in
+        lighter*|lighten*|darker*|darken*|saturate*|vivid*|desaturate*|mute*|complement|invert)
+          new="$(_color_op "$cur" "${rawv,,}")" || true ;;
+      esac
+      [ -z "$new" ] && new="$(_norm_color "$rawv")" || true
+      [ -z "$new" ] && { warn "'$rawv' is not a colour (try a name, #abc, aabbcc, or lighter/darker[:pct])"; return 1; } ;;
+    int:*|float:*)
+      local mn mx st isf=0; IFS=: read -r _ mn mx st <<<"$type"
+      [[ "$type" == float:* ]] && isf=1
+      case "$rawv" in
+        ++)      new="$(awk -v c="$cur" -v s="$st" 'BEGIN{print c+s}')" ;;
+        --)      new="$(awk -v c="$cur" -v s="$st" 'BEGIN{print c-s}')" ;;
+        max|full) new="$mx" ;;
+        min|none|off) new="$mn" ;;
+        +*)      new="$(awk -v c="$cur" -v d="${rawv#+}" 'BEGIN{print c+d}')" ;;
+        -*)      new="$(awk -v c="$cur" -v d="${rawv#-}" 'BEGIN{print c-d}')" ;;
+        *[0-9]x|*[0-9]X) new="$(awk -v c="$cur" -v f="${rawv%[xX]}" 'BEGIN{print c*f}')" ;;
+        *)       new="$rawv" ;;
+      esac
+      awk -v n="$new" 'BEGIN{exit (n+0==n)?0:1}' 2>/dev/null || { warn "'$rawv' is not a number for $key"; return 1; }
+      # clamp into schema range and round to step grid
+      new="$(awk -v n="$new" -v mn="$mn" -v mx="$mx" -v f="$isf" 'BEGIN{
+        if(n<mn)n=mn; if(n>mx)n=mx
+        if(f) printf "%.2f", n; else printf "%d", n+0.5 }')" ;;
+    choice)
+      new="$(printf '%s\n' ${spec//,/ } | _match "$rawv")" || { warn "$key must be one of: ${spec//,/ / }"; return 1; } ;;
+    pick:*)
+      local kind="${type#pick:}"
+      new="$(list_options "$kind" | _match "$rawv")" || { warn "no $kind matching '$rawv' (see: wear options $kind)"; return 1; } ;;
+    font)
+      new="$(fc-list : family 2>/dev/null | tr ',' '\n' | sort -u | _match "$rawv" || true)"
+      [ -z "$new" ] && new="$rawv" ;;
+    *) new="$rawv" ;;
+  esac
+
+  [ "$new" = "$cur" ] && { info "$key already $cur"; return 0; }
+  snapshot; set_override "$key" "$new"; apply_theme "$(current_theme)" keep
+  if [ "$type" = color ]; then
+    say "$key: $(printf '\033[48;2;%d;%d;%dm  \033[0m' $((16#${cur:0:2})) $((16#${cur:2:2})) $((16#${cur:4:2}))) #$cur → $(printf '\033[48;2;%d;%d;%dm  \033[0m' $((16#${new:0:2})) $((16#${new:2:2})) $((16#${new:4:2}))) #$new"
+  else
+    say "$key: $cur → ${BOLD}$new${NC}"
+  fi
+}
+
+# flip_mode <dark|light|toggle> — re-derive the WHOLE palette for the other
+# polarity while keeping every hue. Works on any theme, applied as overrides
+# so `wear undo` / base reset gets you back.
+flip_mode() {
+  local want="$1" cur k v H S L
+  load_palette "$(current_theme)" >/dev/null 2>&1
+  cur="$THEME_MODE"
+  [ "$want" = toggle ] && { [ "$cur" = dark ] && want=light || want=dark; }
+  [ "$want" = "$cur" ] && { info "already $cur"; return 0; }
+  say "flipping ${BOLD}$(pretty_name "$(current_theme)")${NC} → $want (hues preserved)"
+  snapshot
+  set_override mode "$want"
+  # backgrounds/foregrounds: mirror lightness around 0.5, damp bg saturation
+  for k in bg bg_alt bg_dim surface overlay fg fg_dim fg_faint on_accent; do
+    v="${PAL[$k]}"; read -r H S L <<<"$(_hsl "$v")"
+    set_override "$k" "$(_hex "$H" "$S" "$(awk -v l="$L" 'BEGIN{printf "%.4f", 1-l}')")"
+  done
+  # accents + ANSI: keep hue/sat, nudge lightness into the readable band
+  local lo hi
+  if [ "$want" = light ]; then lo=0.30 hi=0.48; else lo=0.55 hi=0.72; fi
+  for k in accent accent2 accent3 red green yellow blue magenta cyan \
+           br_red br_green br_yellow br_blue br_magenta br_cyan; do
+    v="${PAL[$k]}"; read -r H S L <<<"$(_hsl "$v")"
+    L="$(awk -v l="$L" -v lo="$lo" -v hi="$hi" 'BEGIN{if(l<lo)l=lo; if(l>hi)l=hi; printf "%.4f", l}')"
+    set_override "$k" "$(_hex "$H" "$S" "$L")"
+  done
+  for k in br_black br_white; do
+    v="${PAL[$k]}"; read -r H S L <<<"$(_hsl "$v")"
+    set_override "$k" "$(_hex "$H" "$S" "$(awk -v l="$L" 'BEGIN{printf "%.4f", 1-l}')")"
+  done
+  apply_theme "$(current_theme)" keep
+  info "like it? wear save $(current_theme)-$want · hate it? wear undo"
+}
+
+# doctor [--fix] — audit the active look: WCAG contrast on every text/bg
+# pairing that actually occurs in the desktop, plus sanity checks. --fix
+# nudges failing colours (lightness only, hue untouched) until they pass.
+doctor() {
+  local fix=0; [ "${1:-}" = --fix ] && fix=1
+  load_palette "$(current_theme)" >/dev/null 2>&1
+  local fails=0 checks=0
+  say "auditing ${BOLD}$(pretty_name "$(current_theme)")${NC} (WCAG AA)"
+
+  # pair: fg-key bg-key min-ratio description
+  _check() {
+    local fk="$1" bk="$2" min="$3" what="$4"
+    local f="${PAL[$fk]}" b="${PAL[$bk]}" r
+    r="$(_contrast "$f" "$b")"; checks=$((checks+1))
+    if awk -v r="$r" -v m="$min" 'BEGIN{exit (r>=m)?0:1}'; then
+      printf '   \033[32m✓\033[0m %-28s %5s:1  (%s on %s)\n' "$what" "$r" "$fk" "$bk"
+    else
+      fails=$((fails+1))
+      printf '   \033[31m✗\033[0m %-28s %5s:1  needs %s:1  (%s on %s)\n' "$what" "$r" "$min" "$fk" "$bk"
+      if [ "$fix" = 1 ]; then
+        # walk the FG colour's lightness away from the bg until it passes
+        local H S L dir new tries=0
+        read -r H S L <<<"$(_hsl "$f")"
+        local bl; read -r _ _ bl <<<"$(_hsl "$b")"
+        dir="$(awk -v l="$L" -v bl="$bl" 'BEGIN{print (l>=bl)?1:-1}')"
+        new="$f"
+        while [ $tries -lt 20 ]; do
+          L="$(awk -v l="$L" -v d="$dir" 'BEGIN{l+=d*0.04; if(l>0.98)l=0.98; if(l<0.02)l=0.02; printf "%.4f", l}')"
+          new="$(_hex "$H" "$S" "$L")"
+          awk -v r="$(_contrast "$new" "$b")" -v m="$min" 'BEGIN{exit (r>=m)?0:1}' && break
+          tries=$((tries+1))
+        done
+        set_override "$fk" "$new"
+        printf '     \033[33m↳ fixed\033[0m %s: #%s → #%s  (%s:1)\n' "$fk" "$f" "$new" "$(_contrast "$new" "$b")"
+        PAL[$fk]="$new"
+      fi
+    fi
+  }
+
+  echo
+  _check fg        bg      4.5 "body text"
+  _check fg        bg_alt  4.5 "text on panels/bar"
+  _check fg        surface 4.5 "text on cards/popups"
+  _check fg_dim    bg      3.0 "secondary text"
+  _check accent    bg      3.0 "accent on background"
+  _check on_accent accent  4.5 "text on accent fills"
+  _check red       bg      3.0 "errors"
+  _check yellow    bg      3.0 "warnings"
+  _check green     bg      3.0 "success"
+  _check br_black  bg      2.0 "comments (terminal)"
+  echo
+
+  # structural sanity
+  local w="${PAL[border_width]:-2}" oa="${PAL[opacity_active]:-1}"
+  awk -v o="$oa" 'BEGIN{exit (o<0.75)?0:1}' && \
+    info "note: active opacity $oa is very transparent — text may shimmer over wallpapers"
+  [ "${PAL[blur_size]:-0}" -gt 12 ] && [ "${PAL[blur_passes]:-0}" -gt 3 ] 2>/dev/null && \
+    info "note: blur ${PAL[blur_size]}px × ${PAL[blur_passes]} passes is heavy on the GPU"
+
+  if [ "$fails" = 0 ]; then
+    say "all $checks contrast checks pass — this theme is easy on the eyes"
+  elif [ "$fix" = 1 ]; then
+    apply_theme "$(current_theme)" keep
+    say "$fails issue(s) fixed live — wear undo to revert, wear save <name> to keep"
+  else
+    warn "$fails of $checks checks fail — run ${BOLD}wear doctor --fix${NC} to auto-correct"
+    return 1
+  fi
+}
+
+# import <file.yaml|url> [name] — wear any of the ~250 community base16
+# schemes. Accepts classic (base00: "..") and modern (palette:) layouts.
+import_scheme() {
+  local src="${1:-}" nm="${2:-}" tmp="" body
+  [ -z "$src" ] && { warn "usage: wear import <base16.yaml | url> [name]"; return 1; }
+  if [[ "$src" =~ ^https?:// ]]; then
+    # github blob links → raw
+    src="${src/github.com/raw.githubusercontent.com}"; src="${src//\/blob\//\/}"
+    tmp="$(mktemp)"; curl -fsSL "$src" -o "$tmp" 2>/dev/null || { rm -f "$tmp"; warn "could not fetch $src"; return 1; }
+    body="$tmp"
+  else
+    [ -f "$src" ] || { warn "no such file: $src"; return 1; }
+    body="$src"
+  fi
+  declare -A B16=()
+  local k v
+  while IFS= read -r line; do
+    k="$(sed -nE 's/^[[:space:]]*(base0[0-9A-Fa-f]):[[:space:]]*["'\'']?#?([0-9A-Fa-f]{6}).*/\1/p' <<<"$line")"
+    v="$(sed -nE 's/^[[:space:]]*(base0[0-9A-Fa-f]):[[:space:]]*["'\'']?#?([0-9A-Fa-f]{6}).*/\2/p' <<<"$line")"
+    [ -n "$k" ] && B16["${k,,}"]="${v,,}"
+  done < "$body"
+  [ -z "$nm" ] && nm="$(sed -nE 's/^[[:space:]]*(scheme|name):[[:space:]]*["'\'']?([^"'\'']+).*/\2/p' "$body" | head -1)"
+  [ -n "$tmp" ] && rm -f "$tmp"
+  [ "${#B16[@]}" -lt 16 ] && { warn "not a base16 scheme (found ${#B16[@]}/16 colours)"; return 1; }
+  [ -z "$nm" ] && nm="imported"
+  local slug; slug="$(echo "$nm" | tr 'A-Z ' 'a-z-' | tr -cd '[:alnum:]._-')"
+
+  # mode from bg lightness
+  local gmode=dark L
+  read -r _ _ L <<<"$(_hsl "${B16[base00]}")"
+  awk -v l="$L" 'BEGIN{exit (l>0.5)?0:1}' && gmode=light
+
+  # accent trio = the 3 most saturated of the 7 accent slots
+  local trio; trio="$(for k in base08 base09 base0a base0b base0c base0d base0e; do
+      read -r _ S _ <<<"$(_hsl "${B16[$k]}")"; echo "$S ${B16[$k]}"
+    done | sort -rn | head -3 | awk '{print $2}')"
+
+  declare -gA GEN=()
+  GEN[bg]="${B16[base00]}";      GEN[bg_alt]="${B16[base01]}"
+  GEN[bg_dim]="$(_color_op "${B16[base00]}" darker:25)"
+  GEN[surface]="${B16[base02]}"; GEN[overlay]="${B16[base03]}"
+  GEN[fg]="${B16[base05]}";      GEN[fg_dim]="${B16[base04]}"
+  GEN[fg_faint]="${B16[base03]}"
+  GEN[accent]="$(sed -n 1p <<<"$trio")"
+  GEN[accent2]="$(sed -n 2p <<<"$trio")"
+  GEN[accent3]="$(sed -n 3p <<<"$trio")"
+  # on_accent: whichever of bg / near-white reads better on the accent
+  if awk -v r="$(_contrast "${GEN[bg]}" "${GEN[accent]}")" 'BEGIN{exit (r>=4.5)?0:1}'; then
+    GEN[on_accent]="${GEN[bg]}"
+  else
+    GEN[on_accent]="$([ "$gmode" = dark ] && echo "${B16[base00]}" || echo "${B16[base07]}")"
+    awk -v r="$(_contrast "${GEN[on_accent]}" "${GEN[accent]}")" 'BEGIN{exit (r>=3)?0:1}' || GEN[on_accent]=101010
+  fi
+  GEN[red]="${B16[base08]}";     GEN[green]="${B16[base0b]}"
+  GEN[yellow]="${B16[base0a]}";  GEN[blue]="${B16[base0d]}"
+  GEN[magenta]="${B16[base0e]}"; GEN[cyan]="${B16[base0c]}"
+  GEN[br_black]="${B16[base03]}"; GEN[br_white]="${B16[base07]}"
+  local c
+  for c in red green yellow blue magenta cyan; do
+    GEN[br_$c]="$(_color_op "${GEN[$c]}" lighter:18)"
+  done
+
+  say "importing ${BOLD}$nm${NC} → $slug ($gmode, accent #${GEN[accent]})"
+  snapshot
+  write_generated_theme "$slug" "$nm" "$gmode" >/dev/null
+  : > "$OVERRIDES"; echo "$slug" > "$STATE"
+  apply_theme "$slug" keep
+}
+
+# export the ACTIVE look as a base16 yaml (share your theme anywhere)
+export_scheme() {
+  load_palette "$(current_theme)" >/dev/null 2>&1
+  cat <<EOF
+system: "base16"
+name: "${THEME_DISPLAY}"
+author: "wear (github.com/1ay1/wear)"
+variant: "${THEME_MODE}"
+palette:
+  base00: "#${PAL[bg]}"
+  base01: "#${PAL[bg_alt]}"
+  base02: "#${PAL[surface]}"
+  base03: "#${PAL[br_black]}"
+  base04: "#${PAL[fg_dim]}"
+  base05: "#${PAL[fg]}"
+  base06: "#${PAL[br_white]}"
+  base07: "#${PAL[br_white]}"
+  base08: "#${PAL[red]}"
+  base09: "#${PAL[yellow]}"
+  base0A: "#${PAL[yellow]}"
+  base0B: "#${PAL[green]}"
+  base0C: "#${PAL[cyan]}"
+  base0D: "#${PAL[blue]}"
+  base0E: "#${PAL[magenta]}"
+  base0F: "#${PAL[accent3]}"
+EOF
+}
+
 # --- main -------------------------------------------------------------------
 case "${1:-}" in
   ""|pick|menu)      pick ;;
@@ -992,13 +1423,15 @@ case "${1:-}" in
     fi
     tweak ;;
   gui)               exec "${WEAR_GUI:-$HOME/.local/bin/wear-gui}" ;;
-  set)               # wear set <key> <value...>
+  set)               # wear set <key> <value...>  (fuzzy keys, smart values)
     shift; key="${1:-}"; shift || true; val="$*"
-    [ -z "$key" ] && { warn "usage: wear set <key> <value>"; exit 1; }
-    snapshot; set_override "$key" "$val"; apply_theme "$(current_theme)" keep ;;
-  unset)             # wear unset <key>
+    [ -z "$key" ] || [ -z "$val" ] && { warn "usage: wear set <key> <value>"; exit 1; }
+    smart_set "$key" "$val" ;;
+  unset)             # wear unset <key>  (fuzzy)
     shift; [ -z "${1:-}" ] && { warn "usage: wear unset <key>"; exit 1; }
-    snapshot; unset_override "$1"; apply_theme "$(current_theme)" keep ;;
+    k="$(_all_keys | _match "$1")" || { warn "unknown property: $1"; exit 1; }
+    snapshot; unset_override "$k"; apply_theme "$(current_theme)" keep
+    say "$k → back to base ($(eff_value "$k"))" ;;
   reset)             # wipe all live tweaks, back to the pure base theme
     snapshot; : > "$OVERRIDES"; apply_theme "$(current_theme)" keep
     say "tweaks cleared — back to pure $(pretty_name "$(current_theme)")" ;;
@@ -1006,6 +1439,11 @@ case "${1:-}" in
   random|random-accents) snapshot; randomise_accents; apply_theme "$(current_theme)" keep ;;
   from-color|color)  shift; from_color "$@" ;;
   from|from-image)   shift; from_image "$@" ;;
+  dark|light)        flip_mode "$1" ;;
+  toggle|flip)       flip_mode toggle ;;
+  doctor|check|audit) shift || true; doctor "${1:-}" ;;
+  import)            shift; import_scheme "$@" ;;
+  export)            export_scheme ;;
   undo)              undo ;;
   show|preview)      show_palette ;;
   tweaks|diff)       # show the active overrides
@@ -1025,18 +1463,31 @@ case "${1:-}" in
     echo
     echo "Tweaker:"
     echo "  wear tweak            live appearance editor (GTK GUI, Super+A)"
-    echo "  wear set <k> <v>      set one property live (e.g. wear set radius 20)"
-    echo "  wear unset <k>        drop one tweak"
+    echo "  wear set <k> <v>      smart set — fuzzy keys, named colours, relative"
+    echo "                        values: wear set radius +4 · accent lighter · gaps 2x"
+    echo "  wear unset <k>        drop one tweak (fuzzy)   · wear set <k> default"
     echo "  wear tweaks           show active tweaks"
     echo "  wear reset            clear all tweaks"
     echo "  wear undo             revert the last change (30 steps)"
     echo "  wear save <name>      snapshot current look as a new theme"
     echo
+    echo "Smart:"
+    echo "  wear dark|light|toggle  flip ANY theme's polarity, hues preserved"
+    echo "  wear doctor [--fix]     WCAG contrast audit — --fix repairs live"
+    echo "  wear import <yml|url>   wear any base16 scheme (~250 exist)"
+    echo "  wear export             active look as base16 yaml (share it)"
+    echo
     echo "Generators:"
     echo "  wear from <image>     full theme from a wallpaper/photo"
-    echo "  wear from-color <hex> full theme from one colour (add --light)"
+    echo "  wear from-color <c>   full theme from one colour (hex or name; --light)"
     echo "  wear show             truecolor palette swatches in the terminal" ;;
   *)
     if [ -f "$THEMES_DIR/$1.theme" ]; then snapshot; apply_theme "$1"
-    else warn "no such theme: $1"; echo; echo "Available:"; list_themes; exit 1; fi ;;
+    elif t="$(list_themes | _match "$1")" && [ -n "$t" ]; then
+      info "$1 → ${BOLD}$t${NC}"; snapshot; apply_theme "$t"
+    elif cmd="$(printf '%s\n' list current reload tweak set unset reset undo save random-accents from from-color dark light toggle doctor import export show tweaks schema options get values help | _match "$1")" && [ -n "$cmd" ]; then
+      warn "no such theme or command: $1 — did you mean ${BOLD}wear $cmd${NC}?"; exit 1
+    else
+      warn "no such theme: $1"; echo; echo "Available:"; list_themes; exit 1
+    fi ;;
 esac

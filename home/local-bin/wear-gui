@@ -139,9 +139,17 @@ class WearWindow(Adw.ApplicationWindow):
         undo_btn.connect("clicked", lambda *_: self._run_and_refresh("undo"))
         header.pack_start(undo_btn)
 
+        mode_btn = Gtk.Button(icon_name="weather-clear-night-symbolic",
+                              tooltip_text="Flip dark ↔ light (hues preserved)")
+        mode_btn.connect("clicked", lambda *_: self._run_and_refresh("toggle"))
+        header.pack_start(mode_btn)
+
         menu = Gio.Menu()
         menu.append("Theme from wallpaper…", "win.from-image")
         menu.append("Theme from a colour…", "win.from-color")
+        menu.append("Import base16 scheme…", "win.import")
+        menu.append("Export as base16…", "win.export")
+        menu.append("Check contrast (doctor)", "win.doctor")
         menu.append("Save as new theme…", "win.save")
         menu.append("Reset all tweaks", "win.reset")
         menu_btn = Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu)
@@ -373,7 +381,10 @@ class WearWindow(Adw.ApplicationWindow):
     def _install_actions(self):
         for name, cb in (("save", self._on_save), ("reset", self._on_reset),
                          ("from-image", self._on_from_image),
-                         ("from-color", self._on_from_color)):
+                         ("from-color", self._on_from_color),
+                         ("import", self._on_import),
+                         ("export", self._on_export),
+                         ("doctor", self._on_doctor)):
             act = Gio.SimpleAction.new(name, None)
             act.connect("activate", cb)
             self.add_action(act)
@@ -456,6 +467,66 @@ class WearWindow(Adw.ApplicationWindow):
                 self._run_and_refresh("from-color", rgba_to_hex(rgba))
         cdlg.choose_rgba(self, hex_to_rgba(self.values.get("accent", "3366cc")),
                          None, _done)
+
+    def _on_import(self, *_):
+        """Import a base16 scheme from a yaml file."""
+        dlg = Gtk.FileDialog(title="Import base16 scheme")
+        f = Gtk.FileFilter()
+        f.set_name("base16 schemes")
+        for pat in ("*.yaml", "*.yml"):
+            f.add_pattern(pat)
+        filters = Gio.ListStore.new(Gtk.FileFilter)
+        filters.append(f)
+        dlg.set_filters(filters)
+
+        def _done(d, res):
+            try:
+                gfile = d.open_finish(res)
+            except GLib.Error:
+                return
+            path = gfile.get_path()
+            if path:
+                self._run_and_refresh("import", path)
+        dlg.open(self, None, _done)
+
+    def _on_export(self, *_):
+        """Save the active look as a base16 yaml."""
+        dlg = Gtk.FileDialog(title="Export as base16",
+                             initial_name=f"{wear('current') or 'theme'}.yaml")
+
+        def _done(d, res):
+            try:
+                gfile = d.save_finish(res)
+            except GLib.Error:
+                return
+            path = gfile.get_path()
+            if path:
+                with open(path, "w") as fh:
+                    fh.write(wear("export") + "\n")
+        dlg.save(self, None, _done)
+
+    def _on_doctor(self, *_):
+        """Run the WCAG contrast audit; offer auto-fix when checks fail."""
+        r = subprocess.run([WEAR, "doctor"], capture_output=True, text=True)
+        import re
+        plain = re.sub(r"\x1b\[[0-9;]*m", "", (r.stdout or "") + (r.stderr or ""))
+        ok = r.returncode == 0
+        dlg = Adw.MessageDialog(
+            transient_for=self,
+            heading="All contrast checks pass" if ok else "Contrast issues found",
+            body="")
+        view = Gtk.Label(label=plain.strip(), css_classes=["monospace"],
+                         xalign=0, wrap=False, selectable=True)
+        scroll = Gtk.ScrolledWindow(child=view, min_content_height=280,
+                                    min_content_width=560)
+        dlg.set_extra_child(scroll)
+        dlg.add_response("close", "Close")
+        if not ok:
+            dlg.add_response("fix", "Fix automatically")
+            dlg.set_response_appearance("fix", Adw.ResponseAppearance.SUGGESTED)
+            dlg.connect("response",
+                        lambda d, resp: resp == "fix" and self._run_and_refresh("doctor", "--fix"))
+        dlg.present()
 
 
 class WearApp(Adw.Application):

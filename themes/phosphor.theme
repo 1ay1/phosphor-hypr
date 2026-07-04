@@ -33,7 +33,7 @@ magenta="b3ff66"            # magenta slot (lime here)
 cyan="00e5ff"               # cyan
 
 # Bright ANSI variants (terminal color8-15)
-br_black="1c3a26"
+br_black="295638"
 br_red="ff5c72"
 br_green="7dffa0"
 br_yellow="ffd24d"
