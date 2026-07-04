@@ -360,13 +360,29 @@ load_palette() {
   # vertical bars stack modules; flag it so the css/config can adapt
   case "${PAL[bar_position]}" in left|right) PAL[bar_vertical]=1 ;; *) PAL[bar_vertical]=0 ;; esac
   if [ "${PAL[bar_vertical]}" = 1 ]; then
-    # a vertical (left/right) bar stacks modules top-to-bottom. Center every
-    # module horizontally, give the three groups even vertical padding, hide the
-    # window title (would balloon the width), and compact the workspace pills so
-    # the column stays a tidy, aligned strip — mirrors how top/bottom look.
-    PAL[bar_vertical_css]='window#waybar { min-width: 0; } .modules-left, .modules-center, .modules-right { padding: 8px 0; } .modules-left > widget, .modules-center > widget, .modules-right > widget { margin: 0; } #custom-arch, #clock, #cpu, #custom-cpu, #memory, #temperature, #disk, #pulseaudio, #network, #bluetooth, #custom-gpu, #custom-uptime, #custom-kernel, #custom-power, #tray { margin: 3px 0; padding: 4px 0; } #window { min-width: 0; opacity: 0; } #workspaces { padding: 0; } #workspaces button { padding: 5px 0; margin: 2px 0; }'
+    # a vertical (left/right) bar stacks modules top-to-bottom. The goal is one
+    # tidy fixed-width column where EVERY module is the same width and centered,
+    # the workspace glyphs are square pills (not full-width tall boxes), and the
+    # window title is fully collapsed (opacity:0 still reserves height, so we
+    # zero its min-height/margin/padding too). A fixed bar width keeps long
+    # labels (gpu 38% vram 15% 52) from ballooning one module past the rest.
+    PAL[bar_vertical_css]='window#waybar { min-width: 46px; } '\
+'.modules-left, .modules-center, .modules-right { padding: 6px 0; } '\
+'.modules-left > widget, .modules-center > widget, .modules-right > widget { margin: 0; } '\
+'#custom-arch, #clock, #custom-cpu, #cpu, #memory, #temperature, #disk, #custom-gpu, #pulseaudio, #network, #bluetooth, #custom-uptime, #custom-kernel, #custom-power { margin: 3px 4px; padding: 6px 2px; min-width: 0; } '\
+'#window { min-width: 0; min-height: 0; margin: 0; padding: 0; opacity: 0; } '\
+'#workspaces { padding: 0; margin: 4px 0; } '\
+'#workspaces button { min-width: 26px; min-height: 26px; padding: 0; margin: 3px auto; border-radius: 6px; } '\
+'#tray { margin: 4px auto; padding: 4px 0; } '\
+'#tray > .item { margin: 2px 0; }'
   else
     PAL[bar_vertical_css]=''
+  fi
+  # a vertical bar has no room for wide multi-stat labels — force the compact
+  # 'minimal' density (glyph/short value only) unless the user explicitly asked
+  # for icons, so gpu/net/cpu each fit the fixed column width without overflow.
+  if [ "${PAL[bar_vertical]}" = 1 ] && [ "${PAL[bar_verbosity]}" != icons ] && [ "${PAL[bar_verbosity]}" != minimal ]; then
+    PAL[bar_verbosity]=minimal
   fi
 
   # derived: bar layout presets -> waybar config + css fragments.
