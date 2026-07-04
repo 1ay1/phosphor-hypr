@@ -184,6 +184,7 @@ write_generated_theme() { # $1=slug  $2=display-name  $3=mode  $4=wallpaper(opti
              bar_workspaces bar_clock bar_mod_window bar_mod_cpu bar_mod_temp \
              bar_mod_memory bar_mod_gpu bar_mod_disk bar_mod_audio bar_mod_network \
              bar_mod_bluetooth bar_mod_uptime bar_mod_kernel bar_mod_tray bar_mod_power \
+             rofi_width rofi_lines notif_width notif_position notif_timeout \
              font_ui font_mono font_size_ui font_size_term \
              font_weight term_opacity term_padding cursor_size qt_style kvantum_theme; do
       printf '%s="%s"\n' "$k" "${PAL[$k]:-}"
@@ -237,6 +238,7 @@ load_palette() {
     bar_mod_window bar_mod_cpu bar_mod_temp bar_mod_memory bar_mod_gpu
     bar_mod_disk bar_mod_audio bar_mod_network bar_mod_bluetooth
     bar_mod_uptime bar_mod_kernel bar_mod_tray bar_mod_power
+    rofi_width rofi_lines notif_width notif_position notif_timeout
     font_ui font_mono font_size_ui font_size_term font_weight
     term_opacity term_padding cursor_size qt_style kvantum_theme)
   local k
@@ -283,6 +285,9 @@ load_palette() {
   for _bm in window cpu temp memory gpu disk audio network bluetooth uptime kernel tray power; do
     : "${PAL[bar_mod_$_bm]:=on}"
   done
+  : "${PAL[rofi_width]:=560}";     : "${PAL[rofi_lines]:=9}"
+  : "${PAL[notif_width]:=340}";    : "${PAL[notif_position]:=top-right}"
+  : "${PAL[notif_timeout]:=8}"
   : "${PAL[font_ui]:=JetBrainsMono Nerd Font}"
   : "${PAL[font_mono]:=JetBrainsMono Nerd Font}"
   : "${PAL[font_size_ui]:=13}";    : "${PAL[font_size_term]:=11.0}"
@@ -547,6 +552,7 @@ save_theme() {  # $1=new slug
              bar_workspaces bar_clock bar_mod_window bar_mod_cpu bar_mod_temp \
              bar_mod_memory bar_mod_gpu bar_mod_disk bar_mod_audio bar_mod_network \
              bar_mod_bluetooth bar_mod_uptime bar_mod_kernel bar_mod_tray bar_mod_power \
+             rofi_width rofi_lines notif_width notif_position notif_timeout \
              font_ui font_mono font_size_ui font_size_term \
              font_weight term_opacity term_padding cursor_size qt_style kvantum_theme; do
       printf '%s="%s"\n' "$k" "${PAL[$k]:-}"
@@ -636,6 +642,12 @@ bar_mod_uptime|Uptime module|choice|on,off
 bar_mod_kernel|Kernel module|choice|on,off
 bar_mod_tray|System tray|choice|on,off
 bar_mod_power|Power button|choice|on,off
+## Popups
+rofi_width|Launcher width|int:400:900:20|rofi window px
+rofi_lines|Launcher rows|int:4:16:1|results shown
+notif_width|Notification width|int:260:520:20|dunst px
+notif_position|Notification corner|choice|top-right,top-left,top-center,bottom-right,bottom-left
+notif_timeout|Notification timeout|int:2:20:1|seconds on screen
 ## Type
 font_ui|UI font|font|panel/menus/GTK
 font_mono|Mono font|font|terminal
@@ -1010,11 +1022,43 @@ edit_prop() { # $1=key $2=label $3=type $4=spec
   esac
 }
 
-# Randomise the three accent colours (fun, instant).
+# Randomise the accent trio — with taste. Instead of three unrelated RGB
+# rolls, pick a random HUE and a random colour-harmony STRATEGY, derive the
+# trio from theory, and keep lightness in the readable band for the current
+# mode. Every roll is different; none of them are ugly.
 randomise_accents() {
-  local a; for a in accent accent2 accent3; do
-    set_override "$a" "$(printf '%02x%02x%02x' $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)))"
-  done
+  load_palette "$(current_theme)" >/dev/null 2>&1
+  local h=$((RANDOM % 360)) strat=$((RANDOM % 6))
+  local lo hi
+  if [ "${THEME_MODE:-dark}" = light ]; then lo=32 hi=48; else lo=52 hi=70; fi
+  local L=$(( lo + RANDOM % (hi - lo) )) name h2 h3 s1 s2 s3 l1 l2 l3
+  # defaults: full-ish saturation, same lightness across the trio
+  s1=$((70 + RANDOM % 25)); s2=$s1; s3=$s1; l1=$L; l2=$L; l3=$L
+  case $strat in
+    0) name="complementary"; h2=$(( (h + 180) % 360 )); h3=$(( (h + 30)  % 360 )) ;;
+    1) name="triad";         h2=$(( (h + 120) % 360 )); h3=$(( (h + 240) % 360 )) ;;
+    2) name="analogous";     h2=$(( (h + 30)  % 360 )); h3=$(( (h + 330) % 360 )) ;;
+    3) name="pastel";        h2=$(( (h + 90)  % 360 )); h3=$(( (h + 180) % 360 ))
+       s1=$((35 + RANDOM % 15)); s2=$s1; s3=$s1
+       l1=$((l1 + 12)); l2=$l1; l3=$l1 ;;
+    4) name="neon";          h2=$(( (h + 150) % 360 )); h3=$(( (h + 210) % 360 ))
+       s1=100; s2=100; s3=100
+       if [ "${THEME_MODE:-dark}" != light ]; then l1=60; l2=60; l3=60; fi ;;
+    5) name="monochrome";    h2=$h; h3=$h
+       l2=$(( l1 + 14 )); l3=$(( l1 > 18 ? l1 - 14 : l1 + 26 ))
+       s2=$(( s1 - 20 )); s3=$s1 ;;
+  esac
+  set_override accent  "$(_hex "$h"  "$(awk -v s=$s1 'BEGIN{print s/100}')" "$(awk -v l=$l1 'BEGIN{print l/100}')")"
+  set_override accent2 "$(_hex "$h2" "$(awk -v s=$s2 'BEGIN{print s/100}')" "$(awk -v l=$l2 'BEGIN{print l/100}')")"
+  set_override accent3 "$(_hex "$h3" "$(awk -v s=$s3 'BEGIN{print s/100}')" "$(awk -v l=$l3 'BEGIN{print l/100}')")"
+  # on_accent must stay readable on the new accent
+  local acc oa
+  acc="$(grep -m1 '^accent=' "$OVERRIDES" | cut -d= -f2)"
+  if awk -v r="$(_contrast "${PAL[bg]}" "$acc")" 'BEGIN{exit (r>=4.5)?0:1}'; then oa="${PAL[bg]}"; else
+    if [ "${THEME_MODE:-dark}" = light ]; then oa="f8f8f8"; else oa="101010"; fi
+  fi
+  set_override on_accent "$oa"
+  RANDOM_STRATEGY="$name · hue $h°"
   preview
 }
 
@@ -1499,7 +1543,8 @@ case "${1:-}" in
     snapshot; : > "$OVERRIDES"; apply_theme "$(current_theme)" keep
     say "tweaks cleared — back to pure $(pretty_name "$(current_theme)")" ;;
   save)              shift; save_theme "${1:-}" ;;
-  random|random-accents) snapshot; randomise_accents; apply_theme "$(current_theme)" keep ;;
+  random|random-accents|shuffle) snapshot; randomise_accents; apply_theme "$(current_theme)" keep
+    say "new accents: ${BOLD}${RANDOM_STRATEGY:-}${NC} — roll again, or wear undo" ;;
   from-color|color)  shift; from_color "$@" ;;
   from|from-image)   shift; from_image "$@" ;;
   dark|light)        flip_mode "$1" ;;

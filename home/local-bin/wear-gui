@@ -27,6 +27,7 @@ CATEGORY_ICONS = {
     "Shape": "view-grid-symbolic",
     "Feel": "weather-clear-symbolic",
     "Bar": "view-dual-symbolic",
+    "Popups": "user-available-symbolic",
     "Type": "font-x-generic-symbolic",
     "System": "applications-system-symbolic",
 }

@@ -33,7 +33,7 @@ window {
     border: @t-border;
     border-color: @accent;
     border-radius: @t-radius;
-    width: 560px;
+    width: @t-width;
     padding: 2px;
     font: @t-font;
 }
@@ -66,7 +66,7 @@ entry {
 }
 
 listview {
-    lines: 9;
+    lines: @t-lines;
     spacing: 2px;
     scrollbar: false;
     cycle: true;

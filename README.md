@@ -94,12 +94,17 @@ choosers. Every change hits the whole desktop **as you drag**.
   12 h), and a **switch for every module** — window title, CPU, temperature,
   memory, GPU, disk, audio, network, bluetooth, uptime, kernel, tray, power.
   Waybar restarts instantly on each change.
+- **Popups** — launcher width & rows (rofi), notification width, corner and
+  timeout (dunst).
 - **Type** — UI & mono fonts, sizes, weight.
 - **System** — dark/light mode, icon theme, cursor theme & size, wallpaper
   shader — all discovered from what's actually installed.
 
-The header has a base-theme switcher, a randomise-accents shuffle, an undo
-button, and **Save as new theme**. The menu hides two generators: **Theme from
+The header has a base-theme switcher, a **randomise-accents shuffle** (colour
+theory, not dice: each roll picks a random hue and a harmony strategy —
+complementary, triad, analogous, pastel, neon or monochrome — keeps lightness
+in the readable band, and re-picks the on-accent text colour by measured
+contrast), an undo button, and **Save as new theme**. The menu hides two generators: **Theme from
 wallpaper…** and **Theme from a colour…**.
 
 Everything the GUI does is plain CLI underneath — and the CLI is **smart**.
