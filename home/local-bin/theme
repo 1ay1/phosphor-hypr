@@ -112,6 +112,7 @@ apply_theme() {
   render "$REPO/config/kitty/current-theme.conf.tmpl"     "$CFG/kitty/current-theme.conf"
   render "$REPO/config/dunst/dunstrc.tmpl"                "$CFG/dunst/dunstrc"
   render "$REPO/config/rofi/colors.rasi.tmpl"             "$CFG/rofi/colors.rasi"
+  render "$REPO/config/rofi/theme-picker.rasi.tmpl"       "$CFG/rofi/theme-picker.rasi"
   render "$REPO/config/waybar/colors.css.tmpl"            "$CFG/waybar/colors.css"
   render "$REPO/config/hypr/theme-colors.conf.tmpl"       "$CFG/hypr/theme-colors.conf"
   render "$REPO/config/hypr/hyprlock.conf.tmpl"           "$CFG/hypr/hyprlock.conf"
@@ -213,8 +214,12 @@ pick() {
     menu+="$disp\t$slug\n"
   done
   local chosen=""
-  if [ -n "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ] && command -v rofi >/dev/null 2>&1; then
-    chosen="$(printf '%b' "$menu" | cut -f1 | rofi -dmenu -i -p "theme" -theme-str 'window {width: 360px;} listview {lines: 8;}')" || return 0
+  local picker="$CFG/rofi/theme-picker.rasi"
+  if [ -n "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ] && command -v rofi >/dev/null 2>&1 && [ -f "$picker" ]; then
+    # -config /dev/null so we DON'T inherit the combi launcher's fullscreen layout
+    chosen="$(printf '%b' "$menu" | cut -f1 | \
+      rofi -dmenu -i -config /dev/null -theme "$picker" \
+           -mesg "active: $(pretty_name "$cur")")" || return 0
   elif command -v fzf >/dev/null 2>&1; then
     chosen="$(printf '%b' "$menu" | cut -f1 | fzf --prompt='theme> ')" || return 0
   else

@@ -1,0 +1,105 @@
+/* {{THEME_NAME}} — theme picker for `theme`. Rendered by the switcher. */
+configuration {
+    show-icons: false;
+    display-drun: "";
+    me-select-entry: "MousePrimary";
+    me-accept-entry: "MousePrimaryDoubleClick";
+}
+
+* {
+    bg:      #{{bg}};
+    bg-alt:  #{{bg_alt}};
+    fg:      #{{fg}};
+    fg-dim:  #{{fg_dim}};
+    accent:  #{{accent}};
+    on-accent: #{{on_accent}};
+    surface: #{{surface}};
+
+    background-color: transparent;
+    text-color:       @fg;
+    font: "JetBrainsMono Nerd Font 13";
+}
+
+window {
+    transparency: "real";
+    background-color: @bg;
+    border:          2px;
+    border-color:    @accent;
+    border-radius:   14px;
+    width:           440px;
+    location:        center;
+    anchor:          center;
+    padding:         0;
+}
+
+mainbox {
+    padding:  0;
+    spacing:  0;
+    children: [ inputbar, message, listview ];
+}
+
+inputbar {
+    background-color: @bg-alt;
+    border-radius:    14px 14px 0 0;
+    padding:          16px 20px;
+    spacing:          10px;
+    children:         [ prompt, entry ];
+}
+
+prompt {
+    text-color: @accent;
+    str:        "󰏘 theme";
+}
+
+entry {
+    placeholder:       "type to filter…";
+    placeholder-color: @fg-dim;
+    cursor:            text;
+    cursor-color:      @accent;
+}
+
+message {
+    background-color: transparent;
+    padding:          8px 20px 0 20px;
+}
+textbox {
+    text-color: @fg-dim;
+    font:       "JetBrainsMono Nerd Font 10";
+}
+
+listview {
+    lines:        7;
+    columns:      1;
+    spacing:      2px;
+    scrollbar:    false;
+    cycle:        true;
+    dynamic:      true;
+    padding:      12px;
+    background-color: transparent;
+}
+
+element {
+    padding:       10px 16px;
+    border-radius: 8px;
+    spacing:       10px;
+    background-color: transparent;
+    text-color:    @fg;
+}
+
+element normal.normal,
+element alternate.normal {
+    background-color: transparent;
+    text-color:       @fg;
+}
+
+element selected.normal,
+element selected.active {
+    background-color: @accent;
+    text-color:       @on-accent;
+}
+
+element-text {
+    background-color: transparent;
+    text-color:       inherit;
+    vertical-align:   0.5;
+}
