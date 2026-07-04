@@ -1,16 +1,17 @@
 <div align="center">
 
-# 🟢 PHOSPHOR
+# 👕 wear
 
 ### One palette. Your entire desktop. Live.
 
-**Phosphor** is a themeable Hyprland desktop driven by **`wear`** — a theme
-engine that repaints *everything* from a single palette file: Hyprland, Waybar,
-Kitty, Rofi, Dunst, GTK 3/4, Qt 5/6, KDE apps, hyprlock, wlogout, satty, your
-shell & fzf, cursors, icons — even the animated GPU-shader wallpaper.
+**wear** is a theme engine for Hyprland that repaints *everything* from a
+single palette file: Hyprland, Waybar, Kitty, Rofi, Dunst, GTK 3/4, Qt 5/6,
+KDE apps, hyprlock, wlogout, satty, your shell & fzf, cursors, icons — even
+the animated GPU-shader wallpaper.
 
 Change one colour and the whole desktop follows. Instantly. No logout, no
-restart, nothing left un-themed.
+restart, nothing left un-themed. Ships as a complete desktop with 7 themes —
+led by **Phosphor**, a green-on-black CRT look.
 
 ![Phosphor desktop](assets/screenshot-1.png)
 ![Phosphor desktop](assets/screenshot-2.png)
@@ -22,13 +23,13 @@ restart, nothing left un-themed.
 ## ⚡ Install
 
 ```sh
-git clone https://github.com/1ay1/phosphor.git && cd phosphor && ./install.sh
+git clone https://github.com/1ay1/wear.git && cd wear && ./install.sh
 ```
 
 or straight from the web:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/1ay1/phosphor/main/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/1ay1/wear/main/bootstrap.sh | bash
 ```
 
 The installer:
@@ -220,7 +221,7 @@ Defaults: **JetBrainsMono Nerd Font** · **Bibata-Modern-Amber** cursor ·
   auto-selects it as the neutral base.
 - **Skip packages:** `PHOSPHOR_SKIP_PKGS=1 ./install.sh` deploys configs only.
 - **Restore:** everything overwritten is in `~/.phosphor-backup/<timestamp>/`.
-- **Repo location:** `wear` finds the repo at `~/phosphor` (or set
+- **Repo location:** `wear` finds the repo at `~/wear` (or set
   `PHOSPHOR_REPO=/path`).
 
 <details>
