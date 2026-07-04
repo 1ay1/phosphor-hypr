@@ -220,7 +220,7 @@ class WearWindow(Adw.ApplicationWindow):
 
     # -- build all pages -----------------------------------------------------
     # Pages that have a style randomiser in the engine (wear random <section>).
-    RANDOM_SECTIONS = {"Colours": "accents", "Shape": "shape", "Feel": "feel",
+    RANDOM_SECTIONS = {"Colours": "colours", "Shape": "shape", "Feel": "feel",
                        "Bar": "bar", "Popups": "popups"}
 
     def _rand_btn(self, sect: str) -> Gtk.Button:

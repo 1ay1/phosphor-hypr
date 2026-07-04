@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # ============================================================================
-#  PHOSPHOR  —  Hyprland green-on-black theme installer
-#  One-command setup for the whole look: Hyprland, Waybar, Kitty, Rofi, Dunst,
-#  GTK (3/4), Qt (5/6 + Kvantum), KDE color scheme, cursors, icons, wallpaper.
+#  wear — one-command installer for the whole desktop.
+#  Everything themed: Hyprland, Waybar, Kitty, Rofi, Dunst, GTK 3/4, Qt 5/6,
+#  KDE apps, cursors, icons, wallpaper. Safe: backs up whatever it replaces.
+#
+#  Usage:  ./install.sh [--theme <name>] [--skip-pkgs]
 # ============================================================================
 set -euo pipefail
 
@@ -16,9 +18,22 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CFG="$HOME/.config"
 BACKUP="$HOME/.phosphor-backup/$(date +%Y%m%d-%H%M%S)"
 
+# --- flags -------------------------------------------------------------------
+WANT_THEME="${PHOSPHOR_THEME:-}"
+SKIP_PKGS="${PHOSPHOR_SKIP_PKGS:-0}"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --theme)     WANT_THEME="${2:-}"; shift 2 ;;
+    --theme=*)   WANT_THEME="${1#*=}"; shift ;;
+    --skip-pkgs) SKIP_PKGS=1; shift ;;
+    -h|--help)   echo "usage: ./install.sh [--theme <name>] [--skip-pkgs]"; exit 0 ;;
+    *) warn "unknown flag: $1"; shift ;;
+  esac
+done
+
 # --- sanity ------------------------------------------------------------------
 if ! command -v pacman >/dev/null 2>&1; then
-  warn "This theme targets Arch/Hyprland (pacman). Aborting."; exit 1
+  warn "This setup targets Arch-based distros (pacman). Aborting."; exit 1
 fi
 
 # --- 1. packages -------------------------------------------------------------
@@ -88,17 +103,42 @@ deploy_config() {
   chmod +x "$CFG"/hypr/scripts/*.sh 2>/dev/null || true
 }
 
+# --- GPU auto-detection: NVIDIA env vars only where they belong ---------------
+tune_gpu() {
+  local conf="$CFG/hypr/hyprland.conf" have_nvidia=0
+  [ -f "$conf" ] || return 0
+  if [ -d /proc/driver/nvidia ] || lsmod 2>/dev/null | grep -q '^nvidia' \
+     || lspci 2>/dev/null | grep -qi 'vga.*nvidia\|3d.*nvidia'; then
+    have_nvidia=1
+  fi
+  if [ "$have_nvidia" = 1 ]; then
+    say "NVIDIA GPU detected — keeping NVIDIA env vars"
+  else
+    say "No NVIDIA GPU — disabling NVIDIA-specific env vars"
+    sed -i -E 's@^(env = (LIBVA_DRIVER_NAME,nvidia|__GLX_VENDOR_LIBRARY_NAME,nvidia|NVD_BACKEND,direct).*)@# \1  # disabled: no NVIDIA GPU@' "$conf"
+  fi
+}
+
 deploy_local_bin() {
   say "Installing helper scripts to ~/.local/bin"
   mkdir -p "$HOME/.local/bin"
   if [ -d "$REPO_DIR/home/local-bin" ]; then
     for s in "$REPO_DIR"/home/local-bin/*; do
       [ -e "$s" ] || continue
+      case "$(basename "$s")" in __pycache__) continue ;; esac
       cp -a "$s" "$HOME/.local/bin/"
       chmod +x "$HOME/.local/bin/$(basename "$s")"
       info "~/.local/bin/$(basename "$s")"
     done
   fi
+  # record where the repo lives so `wear` finds its themes/templates forever
+  mkdir -p "$CFG/phosphor"
+  echo "$REPO_DIR" > "$CFG/phosphor/repo"
+  # ~/.local/bin on PATH? warn if not (most shells have it, but be sure)
+  case ":$PATH:" in
+    *":$HOME/.local/bin:"*) : ;;
+    *) warn '~/.local/bin is not on your PATH — add: export PATH="$HOME/.local/bin:$PATH"' ;;
+  esac
   # screenshot + recording target dirs (hyprland binds)
   mkdir -p "$HOME/Pictures/Screenshots" "$HOME/Videos/Recordings"
 }
@@ -121,10 +161,16 @@ deploy_kde_scheme() {
 # --- deploy theme palettes + render the active theme -------------------------
 deploy_themes() {
   say "Installing wear + palettes"
-  # themes/ palettes are read by `wear` straight from the repo (PHOSPHOR_REPO),
-  # so nothing to copy here — just render the active/default theme now.
-  local want="${PHOSPHOR_THEME:-}"
-  if [ -z "$want" ] && [ -f "$CFG/phosphor/theme" ]; then want="$(cat "$CFG/phosphor/theme")"; fi
+  # themes/ palettes are read by `wear` straight from the repo, so nothing to
+  # copy here — just render the chosen/active/default theme now.
+  local want="$WANT_THEME"
+  if [ -z "$want" ] && [ -f "$CFG/phosphor/theme" ]; then
+    # existing install: re-render the current look WITH live tweaks intact
+    info "re-rendering current theme: $(cat "$CFG/phosphor/theme") (tweaks kept)"
+    PHOSPHOR_REPO="$REPO_DIR" "$HOME/.local/bin/wear" reload >/dev/null 2>&1 \
+      || warn "theme render failed (run: wear reload)"
+    return 0
+  fi
   [ -z "$want" ] && want="phosphor"
   info "rendering theme: $want"
   # run the freshly-installed switcher; PHOSPHOR_REPO points at this checkout
@@ -133,8 +179,17 @@ deploy_themes() {
 }
 
 # --- 3. icons: green Papirus folders -----------------------------------------
+# These need root (theme lives in /usr/share/icons). NEVER block on a sudo
+# password prompt here — if we can't sudo non-interactively and have no TTY,
+# skip: it's cosmetic and re-runnable.
+_can_sudo() { sudo -n true 2>/dev/null || [ -t 0 ]; }
+
 apply_icons() {
   say "Setting Papirus folders to green"
+  if ! _can_sudo; then
+    info "skipping (needs sudo, no interactive terminal) — run later: papirus-folders -C green --theme Papirus-Dark"
+    return 0
+  fi
   if command -v papirus-folders >/dev/null 2>&1; then
     papirus-folders -C green --theme Papirus-Dark >/dev/null 2>&1 || warn "papirus-folders failed"
   else
@@ -162,15 +217,28 @@ apply_kvantum() {
 # --- run ---------------------------------------------------------------------
 main() {
   echo -e "${GREEN}${BOLD}"
-  echo "  ┌─────────────────────────────────────────────┐"
-  echo "  │   PHOSPHOR  ·  green-on-black Hyprland theme  │"
-  echo "  └─────────────────────────────────────────────┘"
+  echo "  ┌────────────────────────────────────────────┐"
+  echo "  │   wear  ·  one palette, your whole desktop   │"
+  echo "  └────────────────────────────────────────────┘"
   echo -e "${NC}"
 
-  local SKIP_PKGS="${PHOSPHOR_SKIP_PKGS:-0}"
-  if [ "$SKIP_PKGS" != "1" ]; then install_pkgs; else say "Skipping package install (PHOSPHOR_SKIP_PKGS=1)"; fi
+  if [ "$SKIP_PKGS" != "1" ]; then
+    # ask for the sudo password ONCE, up front, from the real terminal
+    if ! sudo -n true 2>/dev/null; then
+      if [ -t 0 ]; then
+        say "This needs sudo for packages + icon cache — asking once now"
+        sudo -v || { warn "sudo failed — rerun, or use --skip-pkgs"; exit 1; }
+      else
+        warn "No terminal for the sudo prompt — skipping package install."
+        warn "Run again from a terminal, or: sudo pacman -S ... (see install.sh)"
+        SKIP_PKGS=1
+      fi
+    fi
+  fi
+  if [ "$SKIP_PKGS" != "1" ]; then install_pkgs; else say "Skipping package install (--skip-pkgs)"; fi
 
   deploy_config
+  tune_gpu
   deploy_local_bin
   deploy_home
   deploy_kde_scheme
@@ -181,13 +249,23 @@ main() {
 
   echo
   say "Done! 🟢"
-  echo -e "   Backups of anything overwritten are in: ${BOLD}$BACKUP${NC}"
-  echo -e "   Switch themes:  ${BOLD}wear${NC} (picker) or ${BOLD}wear <name>${NC} · also ${BOLD}Super+Shift+T${NC}"
-  echo -e "   Available:      ${BOLD}wear list${NC}"
-  echo -e "   Reload Hyprland: ${BOLD}hyprctl reload${NC} · For Qt/KDE, ${BOLD}log out and back in${NC}."
+  echo -e "   Backups of anything overwritten: ${BOLD}$BACKUP${NC}"
   echo
-  warn "NVIDIA note: hyprland.conf sets NVIDIA env vars. On AMD/Intel, comment out"
-  warn "the LIBVA_DRIVER_NAME / __GLX_VENDOR_LIBRARY_NAME / NVD_BACKEND lines."
+  if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] && command -v hyprctl >/dev/null 2>&1; then
+    say "You're inside Hyprland — reloading now"
+    hyprctl reload >/dev/null 2>&1 || true
+    pkill -x waybar 2>/dev/null || true; sleep 0.4
+    (waybar >/dev/null 2>&1 &) || true
+    echo -e "   The new look is ${BOLD}live${NC}. Qt/KDE apps pick it up after relogin."
+  else
+    echo -e "   ${BOLD}Log in to Hyprland${NC} and everything is themed from the first frame."
+  fi
+  echo
+  echo -e "   → ${BOLD}wear${NC}            theme picker      (also ${BOLD}Super+Shift+T${NC})"
+  echo -e "   → ${BOLD}wear tweak${NC}      live GUI editor   (also ${BOLD}Super+A${NC})"
+  echo -e "   → ${BOLD}wear random${NC}     dice-roll the whole look · ${BOLD}wear undo${NC} to revert"
+  echo -e "   → ${BOLD}wear from <img>${NC}  a full theme from any wallpaper"
+  echo
 }
 
-main "$@"
+main

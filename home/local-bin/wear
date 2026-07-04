@@ -25,6 +25,11 @@ if [ -z "$REPO" ]; then
   cand="$(cd "$(dirname "$SELF")/../.." 2>/dev/null && pwd || true)"
   if [ -n "$cand" ] && [ -d "$cand/themes" ]; then REPO="$cand"; fi
 fi
+# the installer records where the repo was cloned
+if [ -z "$REPO" ] && [ -f "$HOME/.config/phosphor/repo" ]; then
+  cand="$(cat "$HOME/.config/phosphor/repo" 2>/dev/null || true)"
+  [ -n "$cand" ] && [ -d "$cand/themes" ] && REPO="$cand"
+fi
 for p in "$HOME/wear" "$HOME/.local/share/wear" "$HOME/dotfiles/wear" \
          "$HOME/phosphor" "$HOME/.local/share/phosphor" "$HOME/dotfiles/phosphor" \
          "$HOME/phosphor-hypr" "$HOME/.local/share/phosphor-hypr" "$HOME/dotfiles/phosphor-hypr"; do
@@ -1022,15 +1027,19 @@ edit_prop() { # $1=key $2=label $3=type $4=spec
   esac
 }
 
-# Randomise the accent trio — with taste. Instead of three unrelated RGB
-# rolls, pick a random HUE and a random colour-harmony STRATEGY, derive the
-# trio from theory, and keep lightness in the readable band for the current
-# mode. Every roll is different; none of them are ugly.
+# Randomise the WHOLE palette — with taste. Picks a random seed hue, then
+# derives a full cohesive palette from it (tinted backgrounds, surfaces,
+# foregrounds and ANSI slots — the exact keys that drive GTK, Qt and KDE),
+# and lays a random colour-harmony accent trio on top. Backgrounds carry a
+# whisper of the accent hue so the desktop reads as one designed thing, not
+# three loud swatches on a grey box. Mode (dark/light) is preserved.
+# Every roll is different; none of them are ugly.
 randomise_accents() {
   load_palette "$(current_theme)" >/dev/null 2>&1
+  local gmode="${THEME_MODE:-dark}"
   local h=$((RANDOM % 360)) strat=$((RANDOM % 6))
   local lo hi
-  if [ "${THEME_MODE:-dark}" = light ]; then lo=32 hi=48; else lo=52 hi=70; fi
+  if [ "$gmode" = light ]; then lo=32 hi=48; else lo=56 hi=70; fi
   local L=$(( lo + RANDOM % (hi - lo) )) name h2 h3 s1 s2 s3 l1 l2 l3
   # defaults: full-ish saturation, same lightness across the trio
   s1=$((70 + RANDOM % 25)); s2=$s1; s3=$s1; l1=$L; l2=$L; l3=$L
@@ -1043,21 +1052,80 @@ randomise_accents() {
        l1=$((l1 + 12)); l2=$l1; l3=$l1 ;;
     4) name="neon";          h2=$(( (h + 150) % 360 )); h3=$(( (h + 210) % 360 ))
        s1=100; s2=100; s3=100
-       if [ "${THEME_MODE:-dark}" != light ]; then l1=60; l2=60; l3=60; fi ;;
+       if [ "$gmode" != light ]; then l1=60; l2=60; l3=60; fi ;;
     5) name="monochrome";    h2=$h; h3=$h
        l2=$(( l1 + 14 )); l3=$(( l1 > 18 ? l1 - 14 : l1 + 26 ))
        s2=$(( s1 - 20 )); s3=$s1 ;;
   esac
+
+  # 1) derive a FULL cohesive palette from the seed hue (this is what feeds
+  #    GTK/Qt/KDE: bg, bg_alt, bg_dim, surface, overlay, fg, fg_dim, fg_faint,
+  #    on_accent, br_black/br_white, plus semantic ANSI colours).
+  local seed; seed="$(_hex "$h" "$(awk -v s=$s1 'BEGIN{print s/100}')" "$(awk -v l=$l1 'BEGIN{print l/100}')")"
+  declare -gA GEN=()
+  gen_palette "$seed" "$gmode"
+  # backgrounds/surfaces keep only a WHISPER of the seed hue (gen_palette
+  # already tints them ~0.18-0.28 sat); that subtle tint is what makes GTK
+  # window chrome feel part of the theme instead of neutral grey.
+  local k
+  for k in bg bg_alt bg_dim surface overlay fg fg_dim fg_faint on_accent \
+           br_black br_white red green yellow blue magenta cyan \
+           br_red br_green br_yellow br_blue br_magenta br_cyan; do
+    set_override "$k" "${GEN[$k]}"
+  done
+
+  # 2) lay the harmonised accent trio on top (overrides gen_palette's ±30°)
   set_override accent  "$(_hex "$h"  "$(awk -v s=$s1 'BEGIN{print s/100}')" "$(awk -v l=$l1 'BEGIN{print l/100}')")"
   set_override accent2 "$(_hex "$h2" "$(awk -v s=$s2 'BEGIN{print s/100}')" "$(awk -v l=$l2 'BEGIN{print l/100}')")"
   set_override accent3 "$(_hex "$h3" "$(awk -v s=$s3 'BEGIN{print s/100}')" "$(awk -v l=$l3 'BEGIN{print l/100}')")"
-  # on_accent must stay readable on the new accent
+
+  # 3) body text (fg) must read on the tinted background (GTK/Qt text).
+  if ! awk -v r="$(_contrast "${GEN[fg]}" "${GEN[bg]}")" 'BEGIN{exit (r>=4.5)?0:1}'; then
+    [ "$gmode" = light ] && set_override fg "1a1a1a" || set_override fg "ececec"
+  fi
+
+  # 4) semantic colours + accents must clear 3:1 on bg (they read as text:
+  #    errors/warnings/success, GTK links, terminal). Light backgrounds are
+  #    unforgiving — walk any failing colour's lightness toward the bg's
+  #    opposite pole until it passes (hue/sat kept, so it stays on-palette).
+  local bg="${GEN[bg]}" ck cv cH cS cL cdir ctry
+  for ck in accent accent2 accent3 red green yellow blue magenta cyan; do
+    cv="$(eff_value "$ck")"
+    awk -v r="$(_contrast "$cv" "$bg")" 'BEGIN{exit (r>=3.0)?0:1}' && continue
+    read -r cH cS cL <<<"$(_hsl "$cv")"
+    [ "$gmode" = light ] && cdir=-1 || cdir=1     # light bg: darken; dark bg: lighten
+    ctry=0
+    while [ $ctry -lt 24 ]; do
+      cL="$(awk -v l="$cL" -v d="$cdir" 'BEGIN{l+=d*0.03; if(l>0.97)l=0.97; if(l<0.03)l=0.03; printf "%.4f", l}')"
+      cv="$(_hex "$cH" "$cS" "$cL")"
+      awk -v r="$(_contrast "$cv" "$bg")" 'BEGIN{exit (r>=3.0)?0:1}' && break
+      ctry=$((ctry+1))
+    done
+    set_override "$ck" "$cv"
+    # keep bright ANSI a step above its base
+    case "$ck" in red|green|yellow|blue|magenta|cyan)
+      set_override "br_$ck" "$(_color_op "$cv" lighter:18)" ;;
+    esac
+  done
+
+  # 5) on_accent must read on the FINAL accent (step 4 may have moved it).
+  #    Prefer the tinted bg (cohesive), else a near-pole, else the readable
+  #    pure pole — guarantees the 4.5:1 needed for text on accent fills.
   local acc oa
-  acc="$(grep -m1 '^accent=' "$OVERRIDES" | cut -d= -f2)"
-  if awk -v r="$(_contrast "${PAL[bg]}" "$acc")" 'BEGIN{exit (r>=4.5)?0:1}'; then oa="${PAL[bg]}"; else
-    if [ "${THEME_MODE:-dark}" = light ]; then oa="f8f8f8"; else oa="101010"; fi
+  acc="$(eff_value accent)"
+  if awk -v r="$(_contrast "${GEN[bg]}" "$acc")" 'BEGIN{exit (r>=4.5)?0:1}'; then
+    oa="${GEN[bg]}"
+  else
+    local base; [ "$gmode" = light ] && base="f8f8f8" || base="101010"
+    if awk -v r="$(_contrast "$base" "$acc")" 'BEGIN{exit (r>=4.5)?0:1}'; then
+      oa="$base"
+    else
+      local rb rw; rb="$(_contrast 000000 "$acc")"; rw="$(_contrast ffffff "$acc")"
+      oa="$(awk -v b="$rb" -v w="$rw" 'BEGIN{print (w>=b)?"ffffff":"000000"}')"
+    fi
   fi
   set_override on_accent "$oa"
+
   RANDOM_STRATEGY="$name · hue $h°"
 }
 
@@ -1123,7 +1191,7 @@ tweak() {
     local rows="" line key label type spec
     # header actions
     rows+="\uf043  <b>Base theme</b>: $(pretty_name "$cur_theme")\t@base\n"
-    rows+="\uf5aa  <b>Random accents</b> \uf522\t@random\n"
+    rows+="\uf5aa  <b>Random colours</b> \uf522  <span size='small'>(full palette)</span>\t@random\n"
     rows+="\uf522  <b>Random everything</b>  <span size='small'>(style only)</span>\t@chaos\n"
     rows+="\uf0c7  <b>Save as new theme…</b>\t@save\n"
     local ntweaks=0; [ -f "$OVERRIDES" ] && ntweaks=$(grep -cvE '^\s*(#|$)' "$OVERRIDES" 2>/dev/null || echo 0)
@@ -1601,7 +1669,7 @@ case "${1:-}" in
     sect="$(printf '%s\n' accents colours shape feel bar popups everything all | _match "${sect:-everything}" || echo everything)"
     snapshot
     case "$sect" in
-      accents|colours) randomise_accents; msg="accents: ${RANDOM_STRATEGY:-}" ;;
+      accents|colours) randomise_accents; msg="colours: ${RANDOM_STRATEGY:-}" ;;
       shape)   randomise_shape;   msg="shape (radius/borders/gaps)" ;;
       feel)    randomise_feel;    msg="feel (opacity/blur/glow/anims)" ;;
       bar)     randomise_bar;     msg="bar (geometry & look)" ;;
@@ -1618,6 +1686,11 @@ case "${1:-}" in
   doctor|check|audit) shift || true; doctor "${1:-}" ;;
   import)            shift; import_scheme "$@" ;;
   export)            export_scheme ;;
+  update|upgrade)    # pull the latest wear + re-deploy, keeping your look
+    if [ ! -d "$REPO/.git" ]; then warn "$REPO is not a git clone — can't self-update"; exit 1; fi
+    say "updating ${BOLD}wear${NC} in $REPO"
+    git -C "$REPO" pull --ff-only || { warn "git pull failed (local changes in $REPO?)"; exit 1; }
+    PHOSPHOR_SKIP_PKGS=1 bash "$REPO/install.sh" --skip-pkgs ;;
   undo)              undo ;;
   show|preview)      show_palette ;;
   tweaks|diff)       # show the active overrides
@@ -1656,12 +1729,14 @@ case "${1:-}" in
     echo "Generators:"
     echo "  wear from <image>     full theme from a wallpaper/photo"
     echo "  wear from-color <c>   full theme from one colour (hex or name; --light)"
-    echo "  wear show             truecolor palette swatches in the terminal" ;;
+    echo "  wear show             truecolor palette swatches in the terminal"
+    echo
+    echo "  wear update           pull the latest wear + re-deploy (look kept)" ;;
   *)
     if [ -f "$THEMES_DIR/$1.theme" ]; then snapshot; apply_theme "$1"
     elif t="$(list_themes | _match "$1")" && [ -n "$t" ]; then
       info "$1 → ${BOLD}$t${NC}"; snapshot; apply_theme "$t"
-    elif cmd="$(printf '%s\n' list current reload tweak set unset reset undo save random-accents from from-color dark light toggle doctor import export show tweaks schema options get values help | _match "$1")" && [ -n "$cmd" ]; then
+    elif cmd="$(printf '%s\n' list current reload tweak set unset reset undo save random-accents from from-color dark light toggle doctor import export update show tweaks schema options get values help | _match "$1")" && [ -n "$cmd" ]; then
       warn "no such theme or command: $1 — did you mean ${BOLD}wear $cmd${NC}?"; exit 1
     else
       warn "no such theme: $1"; echo; echo "Available:"; list_themes; exit 1

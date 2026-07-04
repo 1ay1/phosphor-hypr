@@ -20,28 +20,41 @@ led by **Phosphor**, a green-on-black CRT look.
 
 ---
 
-## ⚡ Install
-
-```sh
-git clone https://github.com/1ay1/wear.git && cd wear && ./install.sh
-```
-
-or straight from the web:
+## ⚡ Install — one command
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/1ay1/wear/main/bootstrap.sh | bash
 ```
 
+That's it. Log in to Hyprland (or, if you're already in it, the new look goes
+live immediately). Prefer to see what you're running first?
+
+```sh
+git clone https://github.com/1ay1/wear.git && cd wear && ./install.sh
+```
+
+Start with a different theme: `... | bash -s -- --theme tokyo-night`
+
 The installer:
 
 1. Installs every package the setup needs (repo + AUR via `paru`/`yay`)
 2. **Backs up** anything it's about to overwrite → `~/.phosphor-backup/<timestamp>/`
-3. Copies configs into `~/.config` (templates stay in the repo)
-4. Installs `wear` + `wear-gui` to `~/.local/bin` and renders the active theme
-5. Recolours **Papirus** folders and refreshes the icon cache
+3. Detects your GPU — NVIDIA env vars are enabled only on NVIDIA machines
+4. Copies configs into `~/.config` (templates stay in the repo)
+5. Installs `wear` + `wear-gui` to `~/.local/bin` and renders the theme
+6. Recolours **Papirus** folders and refreshes the icon cache
+7. If you're already inside Hyprland: reloads it — the theme is live before
+   the prompt returns
+
+Re-running it later is safe: your active theme **and live tweaks survive**.
+Stay current with a single command:
+
+```sh
+wear update      # git pull + re-deploy, your look untouched
+```
 
 > Arch-based distros for the package step; on anything else run
-> `PHOSPHOR_SKIP_PKGS=1 ./install.sh` and install dependencies yourself.
+> `./install.sh --skip-pkgs` and install dependencies yourself.
 
 ---
 
@@ -56,6 +69,7 @@ wear from-color teal    # 🪄 generate a theme from one colour (hex or name)
 wear dark / light       # 🌓 flip ANY theme's polarity, hues preserved
 wear doctor --fix       # 🩺 WCAG contrast audit — auto-repairs failures
 wear import dracula.yaml # wear any of ~250 base16 community schemes
+wear random             # 🎲 dice-roll the whole look (or: accents/shape/feel/bar/popups)
 wear undo               # take it back — 30 steps of history
 wear show               # truecolor palette swatches in the terminal
 ```
