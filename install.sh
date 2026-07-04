@@ -23,15 +23,16 @@ fi
 
 # --- 1. packages -------------------------------------------------------------
 PKGS_REPO=(
-  hyprland hyprlock hypridle xdg-desktop-portal-hyprland
+  hyprland hyprlock hypridle
+  xdg-desktop-portal-hyprland xdg-desktop-portal-gtk xdg-desktop-portal
   waybar dunst rofi kitty alacritty
-  qt5ct qt6ct kvantum
+  qt5ct qt6ct kvantum qt5-wayland qt6-wayland
   papirus-icon-theme bibata-cursor-theme
   ttf-jetbrains-mono-nerd ttf-firacode-nerd ttf-nerd-fonts-symbols
-  wl-clipboard cliphist polkit-gnome network-manager-applet blueman libnotify
+  wl-clipboard cliphist grim polkit-gnome network-manager-applet blueman libnotify
   flameshot hyprpicker wlogout brightnessctl playerctl
-  pipewire wireplumber dolphin
-  python
+  pipewire wireplumber dolphin gvfs libcanberra
+  glib2 python
 )
 PKGS_AUR=(
   neowall-git                 # GPU shader wallpaper daemon
