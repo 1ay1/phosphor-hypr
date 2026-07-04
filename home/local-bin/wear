@@ -422,7 +422,7 @@ load_palette() {
       PAL[fmt_gpu]=$'\uf109 %U% %T\u00b0' ;;
     *)  # normal: short prefixes, the phosphor default
       PAL[fmt_cpu]='cpu {usage}%';             PAL[fmt_memory]='mem {percentage}%'
-      PAL[fmt_temp]='cpu {temperatureC}°';     PAL[fmt_disk]='dsk {percentage_used}%'
+      PAL[fmt_temp]='temp {temperatureC}°';    PAL[fmt_disk]='dsk {percentage_used}%'
       PAL[fmt_audio]='vol {volume}%';          PAL[fmt_audio_muted]='vol --'
       PAL[fmt_net_wifi]='net {signalStrength}%'
       PAL[fmt_net_eth]='eth {bandwidthDownBytes}'
