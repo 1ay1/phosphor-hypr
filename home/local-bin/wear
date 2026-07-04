@@ -188,6 +188,7 @@ write_generated_theme() { # $1=slug  $2=display-name  $3=mode  $4=wallpaper(opti
              anim_speed anim_bezier anim_style bar_position bar_height bar_margin \
              bar_margin_x bar_spacing bar_radius bar_opacity bar_border_width \
              bar_padding bar_tray_size bar_font_size \
+             bar_style bar_layer bar_autohide bar_uppercase \
              bar_workspaces bar_clock bar_mod_window bar_mod_cpu bar_mod_temp \
              bar_mod_memory bar_mod_gpu bar_mod_disk bar_mod_audio bar_mod_network \
              bar_mod_bluetooth bar_mod_uptime bar_mod_kernel bar_mod_tray bar_mod_power \
@@ -243,6 +244,7 @@ load_palette() {
     anim_speed anim_bezier anim_style
     bar_position bar_height bar_margin bar_margin_x bar_spacing bar_radius
     bar_opacity bar_border_width bar_padding bar_tray_size bar_font_size bar_workspaces bar_clock
+    bar_style bar_layer bar_autohide bar_uppercase
     bar_mod_window bar_mod_cpu bar_mod_temp bar_mod_memory bar_mod_gpu
     bar_mod_disk bar_mod_audio bar_mod_network bar_mod_bluetooth
     bar_mod_uptime bar_mod_kernel bar_mod_tray bar_mod_power
@@ -295,6 +297,11 @@ load_palette() {
   : "${PAL[bar_margin_x]:=${PAL[bar_margin]}}"
   : "${PAL[bar_opacity]:=0.88}";   : "${PAL[bar_border_width]:=1}"
   : "${PAL[bar_padding]:=6}";      : "${PAL[bar_tray_size]:=16}"
+  # layout presets (Tier-1 radical bar control)
+  : "${PAL[bar_style]:=merged}"      # merged | islands | flat | minimal
+  : "${PAL[bar_layer]:=top}"         # top | bottom (draw behind windows)
+  : "${PAL[bar_autohide]:=off}"      # off | on  (mode=hide, reveal on hover)
+  : "${PAL[bar_uppercase]:=off}"     # off | on  (UPPERCASE all module text)
   : "${PAL[bar_workspaces]:=5}";   : "${PAL[bar_clock]:=seconds}"
   local _bm
   for _bm in window cpu temp memory gpu disk audio network bluetooth uptime kernel tray power; do
@@ -325,6 +332,37 @@ load_palette() {
   else
     PAL[bar_margin_top]="${PAL[bar_margin]}"; PAL[bar_margin_bottom]=0
   fi
+
+  # derived: bar layout presets -> waybar config + css fragments.
+  #   bar_layer   -> config "layer"
+  #   bar_autohide-> config "mode" (hide = reveal on hover) and "exclusive"
+  #   bar_style   -> whether the module GROUP or each MODULE carries the pill
+  #   bar_uppercase -> text-transform on every label
+  PAL[bar_layer]="${PAL[bar_layer]:-top}"
+  if [ "${PAL[bar_autohide]}" = on ]; then
+    PAL[bar_mode]=hide; PAL[bar_exclusive]=false
+  else
+    PAL[bar_mode]=dock; PAL[bar_exclusive]=true
+  fi
+  [ "${PAL[bar_uppercase]}" = on ] \
+    && PAL[bar_text_transform]='text-transform: uppercase; letter-spacing: 0.5px;' \
+    || PAL[bar_text_transform]=''
+  # the pill: background + border + glow + rounding + padding
+  local _pill="background: alpha(@bg, ${PAL[bar_opacity]}); border: ${PAL[bar_border_width]}px solid alpha(@green, 0.45); box-shadow: 0 0 ${PAL[glow_px]}px alpha(@green, ${PAL[glow]}); padding: 0 ${PAL[bar_padding]}px;"
+  case "${PAL[bar_style]}" in
+    islands)   # each module its own floating pill; group is bare
+      PAL[bar_group_css]="background: transparent; padding: 0;"
+      PAL[bar_item_css]="$_pill margin: 3px 3px;" ;;
+    flat)      # no backgrounds at all; text floats on the desktop
+      PAL[bar_group_css]="background: transparent; padding: 0 ${PAL[bar_padding]}px;"
+      PAL[bar_item_css]="padding: 0 ${PAL[bar_padding]}px;" ;;
+    minimal)   # thin group pill, tight items, no per-module border
+      PAL[bar_group_css]="background: alpha(@bg, ${PAL[bar_opacity]}); padding: 0 ${PAL[bar_padding]}px;"
+      PAL[bar_item_css]="padding: 0 4px;" ;;
+    *)         # merged (default): group carries one pill, items are bare
+      PAL[bar_group_css]="$_pill"
+      PAL[bar_item_css]="padding: 0 ${PAL[bar_padding]}px;" ;;
+  esac
 
   # derived: waybar module arrays from the bar_mod_* toggles
   local _ml='"custom/arch", "hyprland/workspaces"'
@@ -575,6 +613,7 @@ save_theme() {  # $1=new slug
              anim_speed anim_bezier anim_style bar_position bar_height bar_margin \
              bar_margin_x bar_spacing bar_radius bar_opacity bar_border_width \
              bar_padding bar_tray_size bar_font_size \
+             bar_style bar_layer bar_autohide bar_uppercase \
              bar_workspaces bar_clock bar_mod_window bar_mod_cpu bar_mod_temp \
              bar_mod_memory bar_mod_gpu bar_mod_disk bar_mod_audio bar_mod_network \
              bar_mod_bluetooth bar_mod_uptime bar_mod_kernel bar_mod_tray bar_mod_power \
@@ -649,6 +688,10 @@ term_opacity|Term opacity|float:0.5:1.0:0.02|kitty background
 term_padding|Term padding|int:0:30:2|kitty window padding px
 ## Bar
 bar_position|Bar position|choice|top,bottom
+bar_style|Bar style|choice|merged,islands,flat,minimal
+bar_layer|Bar layer|choice|top,bottom
+bar_autohide|Auto-hide bar|choice|off,on
+bar_uppercase|Uppercase text|choice|off,on
 bar_height|Bar height|int:20:56:2|px
 bar_margin|Bar edge margin|int:0:24:2|gap to the screen edge the bar hugs
 bar_margin_x|Bar side margin|int:0:40:2|gap on the left & right
@@ -1192,6 +1235,8 @@ randomise_feel() {
 
 randomise_bar() {
   set_override bar_position "$(_rpick top top top bottom)"   # biased: top
+  set_override bar_style    "$(_rpick merged merged islands flat minimal)"
+  set_override bar_uppercase "$(_rpick off off off on)"
   set_override bar_height   "$(_reven 26 40)"
   local m; m="$(_reven 0 12)"
   set_override bar_margin   "$m"                             # gap to hugged edge

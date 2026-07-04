@@ -7,6 +7,7 @@
     font-weight: {{font_weight}};
     min-height: 0;
     border-radius: {{bar_radius}}px;
+    {{bar_text_transform}}
 }
 
 window#waybar {
@@ -14,11 +15,18 @@ window#waybar {
     color: @text;
 }
 
+/* Module container groups. bar_style decides whether the GROUP carries the
+   background pill (merged/flat) or each MODULE carries its own (islands). */
 .modules-left, .modules-center, .modules-right {
-    background: alpha(@bg, {{bar_opacity}});
-    border: {{bar_border_width}}px solid alpha(@green, 0.45);
-    box-shadow: 0 0 {{glow_px}}px alpha(@green, {{glow}});
-    padding: 0 {{bar_padding}}px;
+    {{bar_group_css}}
+}
+
+/* Per-module chrome — empty for merged (group has the pill), a floating pill
+   for islands, an accent underline/outline for the accent styles. */
+#custom-arch, #window, #clock, #cpu, #memory, #temperature, #pulseaudio,
+#network, #bluetooth, #battery, #disk, #tray, #custom-power, #custom-gpu,
+#custom-uptime, #custom-kernel {
+    {{bar_item_css}}
 }
 
 @keyframes blink {
@@ -70,7 +78,6 @@ window#waybar {
 
 #cpu, #memory, #temperature, #pulseaudio, #network,
 #bluetooth, #battery, #tray, #custom-power, #custom-gpu {
-    padding: 0 {{bar_padding}}px;
     margin: 2px 0;
 }
 
