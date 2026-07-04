@@ -128,8 +128,8 @@ deploy_themes() {
   [ -z "$want" ] && want="phosphor"
   info "rendering theme: $want"
   # run the freshly-installed switcher; PHOSPHOR_REPO points at this checkout
-  PHOSPHOR_REPO="$REPO_DIR" "$HOME/.local/bin/theme" "$want" >/dev/null 2>&1 \
-    || warn "theme render failed (run: theme $want)"
+  PHOSPHOR_REPO="$REPO_DIR" "$HOME/.local/bin/wear" "$want" >/dev/null 2>&1 \
+    || warn "theme render failed (run: wear $want)"
 }
 
 # --- 3. icons: green Papirus folders -----------------------------------------
@@ -182,8 +182,8 @@ main() {
   echo
   say "Done! 🟢"
   echo -e "   Backups of anything overwritten are in: ${BOLD}$BACKUP${NC}"
-  echo -e "   Switch themes:  ${BOLD}theme${NC} (picker) or ${BOLD}theme <name>${NC} · also ${BOLD}Super+Shift+T${NC}"
-  echo -e "   Available:      ${BOLD}theme list${NC}"
+  echo -e "   Switch themes:  ${BOLD}wear${NC} (picker) or ${BOLD}wear <name>${NC} · also ${BOLD}Super+Shift+T${NC}"
+  echo -e "   Available:      ${BOLD}wear list${NC}"
   echo -e "   Reload Hyprland: ${BOLD}hyprctl reload${NC} · For Qt/KDE, ${BOLD}log out and back in${NC}."
   echo
   warn "NVIDIA note: hyprland.conf sets NVIDIA env vars. On AMD/Intel, comment out"

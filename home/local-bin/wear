@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # ============================================================================
-#  theme — one-command switcher for the whole Phosphor desktop.
+#  wear — one-command switcher for the whole Phosphor desktop.
 #  Switches EVERYTHING: Hyprland borders/shadows, hyprlock, waybar, rofi, dunst,
 #  kitty, GTK3/4, Qt5/6, KDE colour scheme, satty, wlogout, and the wallpaper.
 #
 #  Usage:
-#    theme                 # interactive picker (rofi if in a session, else fzf/menu)
-#    theme <name>          # switch to <name> (e.g. tokyo-night, gruvbox, phosphor)
-#    theme list            # list available themes
-#    theme current         # print the active theme
-#    theme reload          # re-apply the current theme (after editing a .theme)
+#    wear                  # interactive picker (rofi if in a session, else fzf/menu)
+#    wear <name>           # wear <name> (e.g. tokyo-night, gruvbox, phosphor)
+#    wear list             # list available themes
+#    wear current          # print the active theme
+#    wear reload           # re-apply the current theme (after editing a .theme)
 #
 #  Themes live in  $REPO/themes/*.theme  and are rendered into ~/.config via
 #  the *.tmpl templates under $REPO/config (and $REPO/kde).

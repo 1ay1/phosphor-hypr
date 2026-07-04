@@ -44,11 +44,11 @@ The installer will:
 ## 🎨 Switching themes
 
 ```sh
-theme                 # rofi/fzf picker (also bound to Super+Shift+T)
-theme tokyo-night     # switch directly
-theme list            # list available themes
-theme current         # print the active theme
-theme reload          # re-apply (after editing a palette)
+wear                  # rofi/fzf picker (also bound to Super+Shift+T)
+wear tokyo-night      # switch directly
+wear list             # list available themes
+wear current          # print the active theme
+wear reload           # re-apply (after editing a palette)
 ```
 
 Switching repaints **and reshapes** everything at once — not just colour but the
@@ -103,7 +103,7 @@ Every colour-bearing config is a `*.tmpl` template with `{{key}}` placeholders
 | `wlogout/` | Themed logout menu |
 | `satty/` | Screenshot annotation editor (grim+slurp → satty; Ctrl+C copies & saves) |
 | `hypr/scripts/` | `screenshot.sh` (grim→satty) & `record.sh` (wf-recorder toggle, NVENC) |
-| `~/.local/bin/` | `theme` (switcher) & `shader-switch.sh` (wallpaper picker) |
+| `~/.local/bin/` | `wear` (switcher) & `shader-switch.sh` (wallpaper picker) |
 | `themes/` | Palette files (`*.theme`) — one per theme, ~26 colour keys each |
 | `config/**/*.tmpl` | Templates the switcher renders into `~/.config` per theme |
 
